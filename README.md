@@ -25,6 +25,9 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 | Component | Technology |
 |-----------|-----------|
 | **Backend** | Python 3.11+ |
+| **API Backend** | Vercel Serverless Functions (Python) |
+| **Database** | MongoDB Atlas (subscriptions) |
+| **Email Service** | SendGrid (transactional emails) |
 | **Frontend** | Vanilla JavaScript (ES6+) |
 | **UI/UX** | HTML5 + CSS3 |
 | **Charts** | Chart.js 4.4+ |
@@ -32,8 +35,11 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 | **Hosting** | GitHub Pages (Static Site) |
 | **Data Storage** | JSON files (Git-versioned) |
 | **Change Detection** | SHA256 hashing + diff algorithms |
+| **Security** | Encrypted unsubscribe tokens, environment variables |
 
-**No dependencies required** - Fork, enable Pages, and you're live in 2 minutes! ✨
+**Core tracker needs no setup** - Fork, enable Pages, and you're live in 2 minutes! ✨
+
+**Optional subscriptions** require MongoDB Atlas (free tier) + SendGrid (free tier) + Vercel (free tier)
 
 ---
 
@@ -41,11 +47,13 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 
 **Automatically tracks and visualizes changes** to Azure Service Tags weekly:
 
-- � **Analytics Dashboard**: Charts showing service volatility, regional infrastructure changes, and update timelines
+- 📊 **Analytics Dashboard**: Charts showing service volatility, regional infrastructure changes, and update timelines
 - 📅 **Change History**: Complete timeline with detailed IP-level changes per service and region
 - 🔍 **Smart Search**: Find services, regions, or specific IP addresses instantly
 - 📥 **Export Data**: Download filtered results as JSON for automation
 - 🌍 **Regional Analysis**: See which Azure regions and services are most active
+- 📧 **Email Notifications**: Subscribe to receive weekly change summaries (MongoDB + SendGrid integration)
+- 🔐 **Secure Subscriptions**: Encrypted unsubscribe tokens, duplicate email detection, GDPR-friendly
 
 ---
 
@@ -82,19 +90,31 @@ Done! Your dashboard will be live at: `https://yourusername.github.io/azure-serv
 ## 📁 Project Structure
 
 ```text
-azure-service-tags-tracker/
+azure-service-tags-tracker-dev/
 ├── .github/workflows/
 │   └── update-data.yml           # Weekly automation (GitHub Actions)
+├── api/                          # Serverless API (Vercel Functions)
+│   ├── __init__.py               # Package initializer
+│   ├── db_config.py              # MongoDB connection manager
+│   ├── email_service.py          # SendGrid email delivery
+│   ├── subscribe.py              # Subscription endpoint handler
+│   ├── unsubscribe.py            # Unsubscribe endpoint handler
+│   └── subscription_manager.py   # Subscription business logic
 ├── docs/                         # GitHub Pages website
 │   ├── index.html                # Main dashboard
 │   ├── analytics.html            # Analytics & charts page
 │   ├── history.html              # Change history timeline
+│   ├── subscribe.html            # Email subscription form
+│   ├── unsubscribe.html          # Unsubscribe confirmation page
 │   ├── js/
-│   │   └── dashboard.js          # Core JavaScript (6000+ lines)
+│   │   ├── dashboard.js          # Core JavaScript (6000+ lines)
+│   │   ├── subscription.js       # Subscription form handler
+│   │   └── scroll-handler.js     # Scroll animations
 │   ├── css/
 │   │   ├── style.css             # Main styles
 │   │   ├── navigation.css        # Navigation & common components
-│   │   └── history-controls.css  # History page controls
+│   │   ├── history-controls.css  # History page controls
+│   │   └── subscription.css      # Subscription form styles
 │   └── data/                     # JSON data storage
 │       ├── current.json          # Latest Azure Service Tags
 │       ├── summary.json          # Dashboard statistics
@@ -107,30 +127,51 @@ azure-service-tags-tracker/
 ├── examples/
 │   └── api-usage-examples.md     # API integration examples & guides
 ├── scripts/
-│   └── azure_watcher.py          # Data collection & change detection
-└── README.md
+│   ├── azure_watcher.py          # Data collection & change detection
+│   ├── send_notifications.py     # Email notification sender
+│   ├── test_mongodb.py           # MongoDB connection tester
+│   └── view_subscriptions.py     # Subscription management CLI
+├── .env.example                  # Environment variables template
+├── .gitignore                    # Git ignore rules
+├── vercel.json                   # Vercel deployment configuration
+├── requirements.txt              # Python dependencies
+├── CHANGELOG.md                  # Version history
+├── MONGODB_SETUP.md              # MongoDB Atlas setup guide
+├── VERCEL_DEPLOYMENT.md          # Vercel deployment guide
+└── README.md                     # Project documentation
 ```
 
 ### Key Components
 
-**Backend (Python)**
+#### Backend (Python)
 
-- `azure_watcher.py`: Scrapes Microsoft's Service Tags page, downloads JSON, detects changes using SHA256 hashing
+- **`azure_watcher.py`**: Scrapes Microsoft's Service Tags page, downloads JSON, detects changes using SHA256 hashing
+- **`send_notifications.py`**: Processes MongoDB subscriptions and sends weekly change emails via SendGrid
 
-**Frontend (Vanilla JS + Chart.js)**
+#### Serverless API (Vercel + Python)
 
-- `dashboard.js`: Handles all chart rendering, data loading, search, filtering, and exports
+- **`api/subscribe.py`**: Handles email subscription requests with validation and duplicate detection
+- **`api/unsubscribe.py`**: Processes unsubscribe requests using encrypted tokens
+- **`api/db_config.py`**: MongoDB Atlas connection manager with connection pooling
+- **`api/email_service.py`**: SendGrid email delivery with HTML template support
+- **`api/subscription_manager.py`**: Business logic for subscription lifecycle management
+
+#### Frontend (Vanilla JS + Chart.js)
+
+- **`dashboard.js`**: Handles all chart rendering, data loading, search, filtering, and exports
+- **`subscription.js`**: Email subscription form with real-time validation and error handling
 - Pie charts for AzureCloud regional infrastructure
 - Timeline scatter plots for Microsoft update tracking
 - Bar charts for service activity and regional analysis
 
-**Data Flow**
+#### Data Flow
 
-1. GitHub Action triggers weekly → Python script downloads latest Azure data
+1. **GitHub Action** triggers weekly → Python script downloads latest Azure data
 2. Compares with previous snapshot using hash comparison
 3. Generates change reports (added/removed IPs per service/region)
 4. Commits to `docs/data/` → GitHub Pages auto-deploys
 5. Dashboard loads JSON via fetch API and renders visualizations
+6. **Weekly notifications**: `send_notifications.py` reads MongoDB subscriptions → sends change summaries via SendGrid
 
 ---
 
@@ -159,6 +200,15 @@ azure-service-tags-tracker/
 - **Export Data**: Download filtered results as JSON for automation
 - **Week Comparison**: Compare any two weeks side-by-side
 - **Region Navigation**: Browse changes by geographic region
+
+### Subscription System (`subscribe.html`)
+
+- **📧 Email Notifications**: Weekly change summaries delivered automatically
+- **🔐 Secure Storage**: MongoDB Atlas with encrypted credentials
+- **✉️ SendGrid Integration**: Reliable transactional email delivery
+- **🛡️ Duplicate Prevention**: Automatic duplicate email detection
+- **🔓 Easy Unsubscribe**: Encrypted token-based unsubscribe links
+- **📊 Subscriber Management**: CLI tools for viewing and managing subscriptions
 
 ---
 
