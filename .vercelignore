@@ -1,0 +1,35 @@
+# Development files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed for deployment)
+docs/
+scripts/
+examples/
+*.md
+!README.md
+
+# Test files
+test_*.py
+*_test.py

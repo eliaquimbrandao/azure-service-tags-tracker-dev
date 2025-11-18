@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscribe to Azure Service Tags Updates – Email Notifications</title>
+    <meta name="description"
+        content="Get weekly email notifications when Azure IP ranges and Service Tags change. Subscribe to all changes or filter by specific services and regions.">
+    <meta name="keywords"
+        content="azure service tags notifications, azure ip ranges alerts, email subscription, azure monitoring, service tag updates">
+    <link rel="canonical" href="https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/subscribe.html">
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Subscribe to Azure Service Tags Email Notifications">
+    <meta property="og:description" content="Get weekly email alerts when Azure IP ranges and Service Tags change.">
+    <meta property="og:url" content="https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/subscribe.html">
+    
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <link rel="stylesheet" href="css/subscription.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <a href="index.html" class="nav-brand">Azure IP Ranges & Service Tags — Tracker</a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">🏠 Home</a>
+                <a href="history.html" class="nav-link">📅 Change History</a>
+                <a href="analytics.html" class="nav-link">📊 Analytics</a>
+                <a href="subscribe.html" class="nav-link active">📧 Subscribe</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sticky Page Name (shows on scroll) -->
+    <div class="sticky-page-name" id="stickyPageName">
+        Email Subscriptions
+    </div>
+
+    <!-- Hero Section -->
+    <header class="subscription-hero">
+        <div class="hero-content">
+            <h1>📧 Get Notified on Azure IP & Service Tag Changes</h1>
+            <p class="hero-subtitle">Receive email alerts when Azure IP ranges and Service Tags are updated</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="subscription-container">
+        <div class="subscription-layout">
+            <!-- Left Column: Subscription Form -->
+            <section class="subscription-card">
+                <div class="card-header">
+                    <h2>Create Your Subscription</h2>
+                    <p>Choose what changes you want to track</p>
+                </div>
+
+                <form id="subscriptionForm" class="subscription-form">
+                    <!-- Email Input -->
+                    <div class="form-group">
+                        <label for="email">
+                            <span class="label-text">Email Address</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <input type="email" id="email" name="email" required 
+                            placeholder="your@email.com" class="form-input">
+                        <small class="form-hint">We'll never share your email with anyone else.</small>
+                    </div>
+
+                    <!-- Subscription Type -->
+                    <div class="form-group">
+                        <label class="label-text">Notification Type <span class="label-required">*</span></label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="subscriptionType" value="all" checked>
+                                <span class="radio-content">
+                                    <span class="radio-title">All Changes</span>
+                                    <span class="radio-description">Receive weekly summaries of all Azure Service Tag updates</span>
+                                </span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="subscriptionType" value="filtered">
+                                <span class="radio-content">
+                                    <span class="radio-title">Specific Services</span>
+                                    <span class="radio-description">Only get notified about services you care about</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Service Filter (Hidden by default) -->
+                    <div id="filterSection" class="filter-section" style="display: none;">
+                        <div class="form-group">
+                            <label for="serviceFilter" class="label-text">Search Services</label>
+                            <input type="text" id="serviceFilter" class="form-input" 
+                                placeholder="Type to search services (e.g., Storage, SQL, AzureCloud)">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label-text">Select Services</label>
+                            <div class="service-selector">
+                                <div class="service-categories">
+                                    <button type="button" class="category-btn active" data-category="all">
+                                        All Services <span class="count" id="allCount">0</span>
+                                    </button>
+                                    <button type="button" class="category-btn" data-category="popular">
+                                        Popular <span class="count" id="popularCount">0</span>
+                                    </button>
+                                    <button type="button" class="category-btn" data-category="compute">
+                                        Compute <span class="count" id="computeCount">0</span>
+                                    </button>
+                                    <button type="button" class="category-btn" data-category="storage">
+                                        Storage <span class="count" id="storageCount">0</span>
+                                    </button>
+                                    <button type="button" class="category-btn" data-category="database">
+                                        Database <span class="count" id="databaseCount">0</span>
+                                    </button>
+                                    <button type="button" class="category-btn" data-category="networking">
+                                        Networking <span class="count" id="networkingCount">0</span>
+                                    </button>
+                                </div>
+                                
+                                <div class="service-actions">
+                                    <button type="button" class="action-btn" id="selectAllBtn">✓ Select All on Page</button>
+                                    <button type="button" class="action-btn" id="clearAllBtn">✗ Clear All</button>
+                                </div>
+                                
+                                <div class="service-list" id="serviceList">
+                                    <div class="loading-services">Loading services...</div>
+                                </div>
+                                
+                                <div class="selected-services" id="selectedServices">
+                                    <span class="selected-label">Selected: </span>
+                                    <span class="selected-count">0 services</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Region Filter -->
+                        <div class="form-group">
+                            <label for="regionFilter" class="label-text">Filter by Regions (Optional)</label>
+                            <input type="text" id="regionFilter" class="form-input" 
+                                placeholder="Search regions (e.g., East US, West Europe)"
+                                autocomplete="off">
+                            
+                            <!-- Selected Regions Tags -->
+                            <div class="selected-regions-tags" id="selectedRegionsTags" style="display: none;">
+                                <!-- Selected region tags will appear here -->
+                            </div>
+                            
+                            <!-- Region Search Results Dropdown -->
+                            <div class="region-dropdown" id="regionDropdown" style="display: none;">
+                                <!-- Search results will appear here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary" id="subscribeBtn">
+                            <span class="btn-icon">📧</span>
+                            <span class="btn-text">Subscribe for Free</span>
+                        </button>
+                        <p class="form-footer-note">
+                            Already subscribed? <a href="unsubscribe.html">Manage your subscription</a>
+                        </p>
+                    </div>
+
+                    <!-- Success/Error Messages -->
+                    <div id="formMessage" class="form-message" style="display: none;"></div>
+                </form>
+            </section>
+
+            <!-- Right Column: Features & Benefits -->
+            <aside class="info-sidebar">
+                <section class="info-card">
+                    <h3>✨ What You'll Receive</h3>
+                    <ul class="feature-list">
+                        <li>
+                            <span class="feature-icon">📊</span>
+                            <div>
+                                <strong>Weekly Summaries</strong>
+                                <p>Detailed reports of all IP range changes</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="feature-icon">🎯</span>
+                            <div>
+                                <strong>Filtered Alerts</strong>
+                                <p>Only receive updates for services you selected</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="feature-icon">🔗</span>
+                            <div>
+                                <strong>Direct Links</strong>
+                                <p>Quick access to detailed change reports</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="feature-icon">⚡</span>
+                            <div>
+                                <strong>Timely Delivery</strong>
+                                <p>Get notified shortly after Microsoft updates</p>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="info-card pricing-preview">
+                    <h3>💎 Future Premium Features</h3>
+                    <p class="pricing-notice">Currently in development. All features are currently free!</p>
+                    <ul class="premium-features">
+                        <li>⚡ Real-time push notifications</li>
+                        <li>🔔 Instant alerts via SMS/Slack/Teams</li>
+                        <li>📈 Custom analytics & reports</li>
+                        <li>🔌 API access for automation</li>
+                        <li>📱 Mobile app integration</li>
+                        <li>🎨 White-label dashboards</li>
+                    </ul>
+                    <p class="pricing-eta">Estimated launch: Q2 2026</p>
+                </section>
+
+                <section class="info-card faq-section">
+                    <h3>❓ Frequently Asked Questions</h3>
+                    <details>
+                        <summary>What happens after I subscribe?</summary>
+                        <p>You'll receive a confirmation email with your subscription details and a unique unsubscribe link. Keep this email for future reference.</p>
+                    </details>
+                    <details>
+                        <summary>How often will I receive emails?</summary>
+                        <p>You'll receive weekly summaries every Monday, only when there are changes to Azure Service Tags.</p>
+                    </details>
+                    <details>
+                        <summary>Can I unsubscribe anytime?</summary>
+                        <p>Yes! Every email includes an unsubscribe link. You can opt-out instantly with one click, and your confirmation email also contains a permanent unsubscribe link.</p>
+                    </details>
+                    <details>
+                        <summary>What if I try to subscribe with the same email twice?</summary>
+                        <p>The system will detect if your email is already subscribed and prevent duplicate subscriptions. Check your inbox for your original confirmation email.</p>
+                    </details>
+                    <details>
+                        <summary>Is my email address safe?</summary>
+                        <p>Absolutely. We never share your email with third parties. View our privacy policy for details.</p>
+                    </details>
+                    <details>
+                        <summary>What happens if I select specific services?</summary>
+                        <p>You'll only receive notifications when those specific services have IP range updates, reducing email noise.</p>
+                    </details>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Data Source</h4>
+                <p><a href="https://www.microsoft.com/en-us/download/details.aspx?id=56519" target="_blank"
+                        rel="noopener noreferrer">Microsoft Azure IP Ranges</a></p>
+            </div>
+            <div class="footer-section">
+                <h4>Automation</h4>
+                <p>Updated weekly via GitHub Actions</p>
+            </div>
+            <div class="footer-section">
+                <h4>Open Source</h4>
+                <p><a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev" target="_blank"
+                        rel="noopener noreferrer">View Source Code</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Azure Service Tags & IP Ranges Watcher | Built with ❤️ for the Azure community</p>
+        </div>
+    </footer>
+
+    <script src="js/scroll-handler.js"></script>
+    <script src="js/subscription.js"></script>
+</body>
+
+</html>

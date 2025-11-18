@@ -1,0 +1,21 @@
+{
+  "last_updated": "2025-11-17T01:18:03.118366+00:00",
+  "total_services": 3041,
+  "total_ip_ranges": 95823,
+  "changes_this_week": 0,
+  "ip_changes": 0,
+  "service_additions": 0,
+  "service_removals": 0,
+  "regional_changes": {},
+  "top_active_services": [],
+  "available_dates": [
+    "2025-10-08",
+    "2025-10-10",
+    "2025-10-13",
+    "2025-10-17",
+    "2025-10-20",
+    "2025-10-27",
+    "2025-11-03",
+    "2025-11-10"
+  ]
+}

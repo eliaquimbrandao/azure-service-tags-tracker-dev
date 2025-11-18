@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribe from Azure Service Tags Notifications</title>
+    <meta name="description" content="Unsubscribe from Azure Service Tags email notifications.">
+    <meta name="robots" content="noindex, nofollow">
+    
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <style>
+        .unsubscribe-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            padding: 2rem;
+        }
+
+        .unsubscribe-card {
+            background: white;
+            border-radius: 12px;
+            padding: 3rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .unsubscribe-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .unsubscribe-card h1 {
+            font-size: 2rem;
+            color: var(--text-color);
+            margin-bottom: 1rem;
+        }
+
+        .unsubscribe-card p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .subscription-info {
+            background: var(--bg-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+
+        .subscription-info strong {
+            color: var(--text-color);
+        }
+
+        .subscription-info p {
+            margin: 0.5rem 0;
+            color: var(--text-color);
+        }
+
+        .btn-unsubscribe {
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 1rem;
+        }
+
+        .btn-unsubscribe:hover {
+            background: #b91c1c;
+            transform: translateY(-2px);
+        }
+
+        .btn-unsubscribe:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-cancel {
+            background: var(--border-color);
+            color: var(--text-color);
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-cancel:hover {
+            background: var(--text-muted);
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .message.success {
+            background: rgba(5, 150, 105, 0.1);
+            border: 2px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .message.error {
+            background: rgba(220, 38, 38, 0.1);
+            border: 2px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <a href="index.html" class="nav-brand">Azure IP Ranges & Service Tags — Tracker</a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">🏠 Home</a>
+                <a href="history.html" class="nav-link">📅 Change History</a>
+                <a href="analytics.html" class="nav-link">📊 Analytics</a>
+                <a href="subscribe.html" class="nav-link">📧 Subscribe</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="unsubscribe-container">
+        <!-- Loading State -->
+        <div id="loadingState" class="loading">
+            <div class="spinner"></div>
+            <p>Loading subscription details...</p>
+        </div>
+
+        <!-- Unsubscribe Form -->
+        <div id="unsubscribeForm" class="unsubscribe-card hidden">
+            <div class="unsubscribe-icon">😢</div>
+            <h1>Unsubscribe from Notifications</h1>
+            <p>We're sorry to see you go! You can unsubscribe from Azure Service Tags email notifications below.</p>
+
+            <div id="messageBox" class="message"></div>
+
+            <div class="subscription-info" id="subscriptionInfo">
+                <!-- Subscription details will be populated here -->
+            </div>
+
+            <div class="button-group">
+                <button id="confirmUnsubscribe" class="btn-unsubscribe">
+                    🚫 Confirm Unsubscribe
+                </button>
+                <a href="subscribe.html" class="btn-cancel">Cancel</a>
+            </div>
+
+            <p style="margin-top: 2rem; font-size: 0.9rem;">
+                Changed your mind? You can always <a href="subscribe.html" style="color: var(--primary-color);">subscribe again</a>.
+            </p>
+        </div>
+
+        <!-- Success State -->
+        <div id="successState" class="unsubscribe-card hidden">
+            <div class="unsubscribe-icon">✅</div>
+            <h1>Successfully Unsubscribed</h1>
+            <p>You have been unsubscribed from Azure Service Tags email notifications.</p>
+            <p>You will no longer receive weekly updates about IP range changes.</p>
+            
+            <div style="margin-top: 2rem;">
+                <a href="subscribe.html" class="btn-cancel" style="background: var(--primary-color); color: white;">
+                    Subscribe Again
+                </a>
+                <a href="index.html" class="btn-cancel" style="margin-left: 1rem;">
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="unsubscribe-card hidden">
+            <div class="unsubscribe-icon">⚠️</div>
+            <h1>Invalid Unsubscribe Link</h1>
+            <p>This unsubscribe link is invalid or has expired.</p>
+            <p>If you continue to receive unwanted emails, please contact support.</p>
+            
+            <div style="margin-top: 2rem;">
+                <a href="index.html" class="btn-cancel">Back to Dashboard</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class UnsubscribeManager {
+            constructor() {
+                this.token = null;
+                this.email = null;
+                this.subscription = null;
+                this.init();
+            }
+
+            init() {
+                // Parse URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                this.token = urlParams.get('token');
+                this.email = urlParams.get('email');
+
+                if (!this.token || !this.email) {
+                    this.showError();
+                    return;
+                }
+
+                this.loadSubscription();
+            }
+
+            async loadSubscription() {
+                try {
+                    // In production, this would fetch from backend
+                    const subscriptions = JSON.parse(localStorage.getItem('azureSubscriptions') || '[]');
+                    this.subscription = subscriptions.find(sub => 
+                        sub.email === this.email && 
+                        sub.unsubscribeToken === this.token &&
+                        sub.status === 'active'
+                    );
+
+                    if (!this.subscription) {
+                        this.showError();
+                        return;
+                    }
+
+                    this.displaySubscriptionInfo();
+                } catch (error) {
+                    console.error('Error loading subscription:', error);
+                    this.showError();
+                }
+            }
+
+            displaySubscriptionInfo() {
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('unsubscribeForm').classList.remove('hidden');
+
+                const infoElement = document.getElementById('subscriptionInfo');
+                const subscribedDate = new Date(this.subscription.timestamp).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                infoElement.innerHTML = `
+                    <p><strong>Email:</strong> ${this.subscription.email}</p>
+                    <p><strong>Subscription Type:</strong> ${this.subscription.type === 'all' ? 'All Changes' : 'Filtered Services'}</p>
+                    ${this.subscription.type === 'filtered' ? `<p><strong>Services Monitored:</strong> ${this.subscription.services.length} services</p>` : ''}
+                    <p><strong>Subscribed Since:</strong> ${subscribedDate}</p>
+                `;
+
+                // Setup unsubscribe button
+                document.getElementById('confirmUnsubscribe').addEventListener('click', () => {
+                    this.confirmUnsubscribe();
+                });
+            }
+
+            async confirmUnsubscribe() {
+                const btn = document.getElementById('confirmUnsubscribe');
+                btn.disabled = true;
+                btn.textContent = 'Unsubscribing...';
+
+                try {
+                    // In production, this would call backend API
+                    const subscriptions = JSON.parse(localStorage.getItem('azureSubscriptions') || '[]');
+                    const updatedSubscriptions = subscriptions.map(sub => {
+                        if (sub.email === this.email && sub.unsubscribeToken === this.token) {
+                            return { ...sub, status: 'unsubscribed', unsubscribedAt: new Date().toISOString() };
+                        }
+                        return sub;
+                    });
+                    localStorage.setItem('azureSubscriptions', JSON.stringify(updatedSubscriptions));
+
+                    // Simulate API delay
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Show success
+                    document.getElementById('unsubscribeForm').classList.add('hidden');
+                    document.getElementById('successState').classList.remove('hidden');
+
+                    console.log('Unsubscribed successfully:', this.email);
+                } catch (error) {
+                    console.error('Unsubscribe error:', error);
+                    this.showMessage('Failed to unsubscribe. Please try again.', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '🚫 Confirm Unsubscribe';
+                }
+            }
+
+            showError() {
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('errorState').classList.remove('hidden');
+            }
+
+            showMessage(message, type) {
+                const messageBox = document.getElementById('messageBox');
+                messageBox.textContent = message;
+                messageBox.className = `message ${type}`;
+                messageBox.style.display = 'block';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            new UnsubscribeManager();
+        });
+    </script>
+</body>
+
+</html>

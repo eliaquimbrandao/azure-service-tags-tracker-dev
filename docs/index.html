@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft Azure IP Ranges & Service Tags Tracker – Free Change Monitoring Dashboard</title>
+    <meta name="description"
+        content="Free dashboard that tracks Microsoft Azure IP ranges and Service Tags changes every week. Visualize updates to the official Azure IP Ranges & Service Tags JSON, browse history, and search by service or region.">
+    <meta name="keywords"
+        content="azure ip ranges, azure service tags, microsoft azure ip ranges, azure ip ranges and service tags, azure service tags json, azure ip range monitoring, azure ip address ranges, microsoft azure public cloud, network security, firewall rules, github pages dashboard">
+    <link rel="canonical" href="https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/">
+
+    <!-- Open Graph / Social Preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Azure IP Ranges & Service Tags Tracker – Weekly Change Dashboard">
+    <meta property="og:description"
+        content="Monitor changes to Microsoft Azure IP ranges and Service Tags with a free, open‑source dashboard that tracks the official JSON feed, history, and regional activity.">
+    <meta property="og:url" content="https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/">
+    <meta property="og:site_name" content="Azure IP Ranges & Service Tags Tracker">
+
+    <!-- Structured Data for Search Engines -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Azure IP Ranges & Service Tags Tracker",
+      "url": "https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/",
+      "description": "Free dashboard that monitors Microsoft Azure IP ranges and Service Tags JSON updates weekly with history, analytics, and search.",
+      "creator": {
+        "@type": "Person",
+        "name": "Eliaquim Brandão",
+        "url": "https://github.com/eliaquimbrandao"
+      }
+    }
+    </script>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/date-fns/1.30.1/date_fns.min.js"></script>
+</head>
+
+<body>
+    <!-- Hero Section with Global Visualization -->
+    <header class="hero-section">
+
+        <div class="hero-background">
+            <div class="globe-container">
+                <div class="globe">
+                    <div class="globe-inner">
+                        <div class="continent" data-continent="north-america"></div>
+                        <div class="continent" data-continent="south-america"></div>
+                        <div class="continent" data-continent="europe"></div>
+                        <div class="continent" data-continent="africa"></div>
+                        <div class="continent" data-continent="asia"></div>
+                        <div class="continent" data-continent="oceania"></div>
+                    </div>
+                    <div class="globe-rings">
+                        <div class="ring ring-1"></div>
+                        <div class="ring ring-2"></div>
+                        <div class="ring ring-3"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="network-particles">
+                <div class="particle particle-1"></div>
+                <div class="particle particle-2"></div>
+                <div class="particle particle-3"></div>
+                <div class="particle particle-4"></div>
+                <div class="particle particle-5"></div>
+                <div class="particle particle-6"></div>
+                <div class="particle particle-7"></div>
+                <div class="particle particle-8"></div>
+                <div class="particle particle-9"></div>
+                <div class="particle particle-10"></div>
+                <div class="particle particle-11"></div>
+                <div class="particle particle-12"></div>
+                <div class="particle particle-13"></div>
+                <div class="particle particle-14"></div>
+                <div class="particle particle-15"></div>
+                <div class="particle particle-16"></div>
+                <div class="particle particle-17"></div>
+                <div class="particle particle-18"></div>
+                <div class="particle particle-19"></div>
+                <div class="particle particle-20"></div>
+                <div class="particle particle-21"></div>
+                <div class="particle particle-22"></div>
+                <div class="particle particle-23"></div>
+                <div class="particle particle-24"></div>
+                <div class="particle particle-25"></div>
+                <svg class="network-connections" width="100%" height="100%">
+                    <line class="connection connection-1" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-2" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-3" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-4" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-5" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-6" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-7" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-8" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-9" x1="0" y1="0" x2="100" y2="100" />
+                    <line class="connection connection-10" x1="0" y1="0" x2="100" y2="100" />
+                </svg>
+            </div>
+        </div>
+        <div class="hero-content">
+            <div class="brand-title">
+                <h1>
+                    <span class="brand-text">Azure IP Ranges & Service Tags — Tracker</span>
+                </h1>
+                <p class="hero-subtitle">Continuous monitoring of Microsoft Azure Public Cloud IP range and Service Tag
+                    updates worldwide.</p>
+            </div>
+            <div class="last-updated">
+                <span class="update-icon">🕐</span>
+                Last updated: <span id="lastUpdated">Loading...</span>
+            </div>
+            <div class="hero-navigation">
+                <a href="history.html" class="hero-nav-link">📅 Change History</a>
+                <a href="analytics.html" class="hero-nav-link">📊 Analytics Dashboard</a>
+                <a href="subscribe.html" class="hero-nav-link">📧 Subscribe</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sticky Page Name (shows on scroll) -->
+    <div class="sticky-page-name" id="stickyPageName">
+        Azure IP Ranges & Service Tags — Tracker
+    </div>
+
+    <main class="main-content">
+        <div class="container">
+
+            <!-- Loading State -->
+            <div id="loadingState" class="loading">
+                <div class="spinner"></div>
+                <p>Loading Azure Service Tags data...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorState" class="error hidden">
+                <h3>⚠️ Unable to load data</h3>
+                <p>Please try refreshing the page or check back later.</p>
+            </div>
+
+            <!-- Dashboard Content -->
+            <div id="dashboard" class="dashboard hidden">
+                <!-- Quick Stats Overview -->
+                <section class="stats-overview">
+                    <p class="analytics-instruction">👆 Click on any card below to explore service or region changes
+                        this week</p>
+                    <div class="stats-grid">
+                        <article class="stat-card clickable-stat" onclick="dashboard.showIPRangesHistory()"
+                            title="Click to see IP ranges history">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-content">
+                                <h3 id="totalIPRanges">0</h3>
+                                <p>Total IP Ranges</p>
+                                <span class="click-hint">👆 Click to view history</span>
+                            </div>
+                        </article>
+                        <article class="stat-card clickable-stat" onclick="dashboard.showAllChanges()"
+                            title="Click to see all service changes this week">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <h3 id="changesThisWeek">0</h3>
+                                <p>Service Changes This Week</p>
+                                <span class="click-hint">👆 Click to browse by services</span>
+                            </div>
+                        </article>
+                        <article class="stat-card clickable-stat" onclick="dashboard.showRegionChanges()"
+                            title="Click to see region changes">
+                            <div class="stat-icon">🌍</div>
+                            <div class="stat-content">
+                                <h3 id="ipChanges">0</h3>
+                                <p>Region Changes This Week</p>
+                                <span class="click-hint">👆 Click to browse by region</span>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- Global Search Section -->
+                <section class="search-section">
+                    <div class="search-container">
+                        <h2 class="search-title">🔍 Global Search</h2>
+                        <p class="search-subtitle">Search for any service or region to view detailed changes</p>
+                        <div class="search-box">
+                            <input type="text" id="globalSearch" class="search-input"
+                                placeholder="Type a service name (e.g., Storage, AppService) or region (e.g., East US, West Europe)..."
+                                autocomplete="off">
+                            <button class="search-clear" id="searchClear" title="Clear search">✕</button>
+                        </div>
+                        <div id="searchResults" class="search-results hidden"></div>
+                        <div class="search-hints">
+                            <span class="search-hint-item">💡 Try: <button class="search-example"
+                                    onclick="dashboard.searchExample('AzureMachineLearning')">AzureMachineLearning</button></span>
+                            <span class="search-hint-item">💡 Try: <button class="search-example"
+                                    onclick="dashboard.searchExample('StorageSyncService')">StorageSyncService</button></span>
+                            <span class="search-hint-item">💡 Try: <button class="search-example"
+                                    onclick="dashboard.searchExample('East US')">East US</button></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Changes Summary -->
+                <section class="changes-section">
+                    <header class="section-header">
+                        <h2>🔄 Recent Changes</h2>
+                        <p>Latest updates to Azure service tags and IP ranges
+                            <a href="history.html" class="inline-link">View Full History →</a>
+                        </p>
+                    </header>
+                    <div id="recentChanges" class="changes-container" role="region" aria-label="Recent Changes">
+                        <!-- Changes will be populated by JavaScript -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Service Details Modal -->
+            <div id="serviceModal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalServiceName">Service Details</h3>
+                        <button id="closeModal" class="close-btn">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="service-info">
+                            <p><strong>Region:</strong> <span id="modalRegion">-</span></p>
+                            <p><strong>System Service:</strong> <span id="modalSystemService">-</span></p>
+                            <p><strong>IP Ranges:</strong> <span id="modalIPCount">-</span></p>
+                        </div>
+                        <div class="ip-ranges">
+                            <h4>Current IP Ranges:</h4>
+                            <div id="modalIPRanges" class="ip-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Data Source</h4>
+                <p><a href="https://www.microsoft.com/en-us/download/details.aspx?id=56519" target="_blank"
+                        rel="noopener noreferrer">Microsoft Azure IP Ranges</a></p>
+            </div>
+            <div class="footer-section">
+                <h4>Automation</h4>
+                <p>Updated weekly via GitHub Actions</p>
+            </div>
+            <div class="footer-section">
+                <h4>Open Source</h4>
+                <p><a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev" target="_blank"
+                        rel="noopener noreferrer">View Source Code</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Azure Service Tags & IP Ranges Watcher | Built with ❤️ for the Azure community</p>
+        </div>
+    </footer>
+
+    <script src="js/dashboard.js"></script>
+    <script src="js/scroll-handler.js"></script>
+</body>
+
+</html>
