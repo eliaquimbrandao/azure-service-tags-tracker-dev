@@ -245,6 +245,109 @@ class EmailService:
             traceback.print_exc()
             return False
     
+    def send_unsubscribe_verification(self, email: str, verification_token: str) -> bool:
+        """
+        Send verification email for unsubscribe request
+        
+        Args:
+            email: User's email address
+            verification_token: Temporary verification token
+        
+        Returns:
+            True if sent successfully
+        """
+        if not self.client:
+            print("⚠️ SendGrid not configured. Verification email would be sent to:", email)
+            self._log_verification_email_to_console(email, verification_token)
+            return False
+        
+        try:
+            verification_url = f"{self.app_url}/unsubscribe.html?email={email}&verify={verification_token}"
+            
+            # Prepare email content
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .button {{ display: inline-block; padding: 14px 28px; background: #ef4444; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
+                    .warning {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>⚠️ Confirm Unsubscribe Request</h1>
+                    </div>
+                    <div class="content">
+                        <p>We received a request to unsubscribe <strong>{email}</strong> from Azure Service Tags update notifications.</p>
+                        
+                        <div class="warning">
+                            <strong>⏰ This link expires in 15 minutes</strong><br>
+                            For your security, this verification link will expire shortly.
+                        </div>
+                        
+                        <p><strong>If this was you:</strong></p>
+                        <p style="text-align: center;">
+                            <a href="{verification_url}" class="button">✅ Confirm Unsubscribe</a>
+                        </p>
+                        
+                        <p><strong>If this wasn't you:</strong></p>
+                        <p>Simply ignore this email. Your subscription will remain active and no changes will be made.</p>
+                        
+                        <div class="footer">
+                            <p><strong>Why did I receive this?</strong><br>
+                            Someone (hopefully you) requested to unsubscribe this email address from our service. 
+                            We require email verification to prevent unauthorized unsubscribe requests.</p>
+                            
+                            <p style="margin-top: 20px;">Azure Service Tags Tracker<br>
+                            Automated monitoring powered by GitHub Actions</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(email),
+                subject='⚠️ Confirm Your Unsubscribe Request',
+                html_content=Content("text/html", html_content)
+            )
+            
+            response = self.client.send(message)
+            
+            if response.status_code in [200, 202]:
+                print(f"✅ Verification email sent to {email}")
+                return True
+            else:
+                print(f"⚠️ Email send failed with status {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error sending verification email: {e}")
+            return False
+    
+    def _log_verification_email_to_console(self, email: str, verification_token: str):
+        """Log verification email content to console for development"""
+        verification_url = f"{self.app_url}/unsubscribe.html?email={email}&verify={verification_token}"
+        
+        print("\n" + "="*60)
+        print("📧 UNSUBSCRIBE VERIFICATION EMAIL (Development Mode)")
+        print("="*60)
+        print(f"To: {email}")
+        print(f"Subject: ⚠️ Confirm Your Unsubscribe Request")
+        print(f"\nClick to confirm unsubscribe:")
+        print(f"{verification_url}")
+        print(f"\n⏰ Link expires in 15 minutes")
+        print("="*60 + "\n")
+    
     def _log_email_to_console(self, subscription: Dict):
         """Log email content to console for development"""
         unsubscribe_url = f"{self.app_url}/unsubscribe.html?token={subscription['unsubscribe_token']}&email={subscription['email']}"

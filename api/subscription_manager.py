@@ -28,6 +28,11 @@ class SubscriptionManager:
         return secrets.token_hex(32)
     
     @staticmethod
+    def generate_verification_token():
+        """Generate temporary verification token for email confirmation"""
+        return secrets.token_hex(32)
+    
+    @staticmethod
     def hash_email(email: str) -> str:
         """Hash email for privacy (optional, for analytics)"""
         return hashlib.sha256(email.lower().encode()).hexdigest()
@@ -175,6 +180,194 @@ class SubscriptionManager:
                 return {
                     'success': False,
                     'error': 'Failed to update subscription status'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Database error: {str(e)}'
+            }
+    
+    def unsubscribe_by_email(self, email: str) -> Dict:
+        """
+        Unsubscribe user by email only (convenience method without token)
+        Less secure but more user-friendly
+        
+        Args:
+            email: User's email address
+        
+        Returns:
+            Dict with success status
+        """
+        try:
+            email = email.lower().strip()
+            
+            # Find active subscription
+            subscription = self.collection.find_one({
+                'email': email,
+                'status': 'active'
+            })
+            
+            if not subscription:
+                return {
+                    'success': False,
+                    'error': 'No active subscription found for this email'
+                }
+            
+            # Update status to unsubscribed
+            result = self.collection.update_one(
+                {'_id': subscription['_id']},
+                {
+                    '$set': {
+                        'status': 'unsubscribed',
+                        'unsubscribed_at': datetime.utcnow(),
+                        'updated_at': datetime.utcnow(),
+                        'unsubscribe_method': 'email_only'  # Track unsubscribe method
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                return {
+                    'success': True,
+                    'message': 'Successfully unsubscribed'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to update subscription status'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Database error: {str(e)}'
+            }
+    
+    def create_unsubscribe_verification(self, email: str) -> Dict:
+        """
+        Create temporary verification token for unsubscribe request
+        Token expires in 15 minutes
+        
+        Args:
+            email: User's email address
+        
+        Returns:
+            Dict with verification token and expiry time
+        """
+        try:
+            email = email.lower().strip()
+            
+            # Check if subscription exists
+            subscription = self.collection.find_one({
+                'email': email,
+                'status': 'active'
+            })
+            
+            if not subscription:
+                return {
+                    'success': False,
+                    'error': 'No active subscription found for this email'
+                }
+            
+            # Generate verification token with 15-minute expiry
+            verification_token = self.generate_verification_token()
+            expiry_time = datetime.utcnow()
+            from datetime import timedelta
+            expiry_time = expiry_time + timedelta(minutes=15)
+            
+            # Store verification token temporarily in subscription
+            result = self.collection.update_one(
+                {'_id': subscription['_id']},
+                {
+                    '$set': {
+                        'unsubscribe_verification_token': verification_token,
+                        'verification_token_expiry': expiry_time,
+                        'updated_at': datetime.utcnow()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                return {
+                    'success': True,
+                    'email': email,
+                    'verification_token': verification_token,
+                    'expiry_time': expiry_time.isoformat()
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to create verification token'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Database error: {str(e)}'
+            }
+    
+    def verify_and_unsubscribe(self, email: str, verification_token: str) -> Dict:
+        """
+        Verify token and unsubscribe user
+        
+        Args:
+            email: User's email address
+            verification_token: Temporary verification token
+        
+        Returns:
+            Dict with success status
+        """
+        try:
+            email = email.lower().strip()
+            
+            # Find subscription with valid verification token
+            subscription = self.collection.find_one({
+                'email': email,
+                'unsubscribe_verification_token': verification_token,
+                'status': 'active'
+            })
+            
+            if not subscription:
+                return {
+                    'success': False,
+                    'error': 'Invalid or expired verification link'
+                }
+            
+            # Check if token has expired
+            expiry_time = subscription.get('verification_token_expiry')
+            if expiry_time and datetime.utcnow() > expiry_time:
+                return {
+                    'success': False,
+                    'error': 'Verification link has expired. Please request a new one.'
+                }
+            
+            # Unsubscribe user
+            result = self.collection.update_one(
+                {'_id': subscription['_id']},
+                {
+                    '$set': {
+                        'status': 'unsubscribed',
+                        'unsubscribed_at': datetime.utcnow(),
+                        'updated_at': datetime.utcnow(),
+                        'unsubscribe_method': 'email_verification'
+                    },
+                    '$unset': {
+                        'unsubscribe_verification_token': '',
+                        'verification_token_expiry': ''
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                return {
+                    'success': True,
+                    'message': 'Successfully unsubscribed'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to unsubscribe'
                 }
                 
         except Exception as e:

@@ -21,9 +21,11 @@ class handler(BaseHTTPRequestHandler):
             
             email = data.get('email')
             token = data.get('token')
+            verify_token = data.get('verify')
+            verify_only = data.get('verify_only', False)
             
-            if not email or not token:
-                self.send_error_response(400, "Email and token are required")
+            if not email:
+                self.send_error_response(400, "Email is required")
                 return
             
             # Connect to database
@@ -31,14 +33,52 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_response(500, "Database connection failed")
                 return
             
-            # Unsubscribe user
             sub_manager = SubscriptionManager()
-            result = sub_manager.unsubscribe(email, token)
             
-            if result['success']:
-                self.send_json_response(200, result)
-            else:
-                self.send_json_response(400, result)
+            # If verify_only, just check if subscription exists (requires token)
+            if verify_only:
+                if not token:
+                    self.send_error_response(400, "Token is required for verification")
+                    return
+                    
+                subscription = sub_manager.get_subscription(email=email, token=token)
+                if subscription and subscription['status'] == 'active':
+                    self.send_json_response(200, {
+                        'success': True,
+                        'subscription': {
+                            'email': subscription['email'],
+                            'subscriptionType': subscription['subscriptionType'],
+                            'selectedServices': subscription.get('selectedServices', []),
+                            'timestamp': subscription['timestamp']
+                        }
+                    })
+                else:
+                    self.send_json_response(404, {
+                        'success': False,
+                        'error': 'Subscription not found or already unsubscribed'
+                    })
+                return
+            
+            # Handle unsubscribe with verification token (from email link)
+            if verify_token:
+                result = sub_manager.verify_and_unsubscribe(email, verify_token)
+                if result['success']:
+                    self.send_json_response(200, result)
+                else:
+                    self.send_json_response(400, result)
+                return
+            
+            # Handle unsubscribe with permanent token (from original confirmation email)
+            if token:
+                result = sub_manager.unsubscribe(email, token)
+                if result['success']:
+                    self.send_json_response(200, result)
+                else:
+                    self.send_json_response(400, result)
+                return
+            
+            # No token provided - this shouldn't happen with new flow
+            self.send_error_response(400, "Verification token is required")
             
         except json.JSONDecodeError:
             self.send_error_response(400, "Invalid JSON")

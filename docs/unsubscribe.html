@@ -170,7 +170,39 @@
             <p>Loading subscription details...</p>
         </div>
 
-        <!-- Unsubscribe Form -->
+        <!-- Quick Unsubscribe Form (No Token) -->
+        <div id="quickUnsubscribeForm" class="unsubscribe-card hidden">
+            <div class="unsubscribe-icon">📧</div>
+            <h1>Unsubscribe from Email Notifications</h1>
+            <p>Enter your email address to unsubscribe from Azure Service Tags notifications.</p>
+
+            <div id="quickMessageBox" class="message"></div>
+
+            <form id="quickUnsubForm" style="margin-top: 2rem;">
+                <div style="margin-bottom: 1.5rem;">
+                    <input 
+                        type="email" 
+                        id="quickEmail" 
+                        placeholder="your.email@example.com"
+                        required
+                        style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem;"
+                    />
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit" class="btn-unsubscribe" id="quickUnsubscribeBtn">
+                        🚫 Unsubscribe
+                    </button>
+                    <a href="subscribe.html" class="btn-cancel">Cancel</a>
+                </div>
+            </form>
+
+            <p style="margin-top: 2rem; font-size: 0.9rem; color: var(--text-muted);">
+                💡 You can also unsubscribe using the link in any email we've sent you.
+            </p>
+        </div>
+
+        <!-- Unsubscribe Form (With Token) -->
         <div id="unsubscribeForm" class="unsubscribe-card hidden">
             <div class="unsubscribe-icon">😢</div>
             <h1>Unsubscribe from Notifications</h1>
@@ -219,6 +251,9 @@
             <p>If you continue to receive unwanted emails, please contact support.</p>
             
             <div style="margin-top: 2rem;">
+                <a href="unsubscribe.html" class="btn-cancel" style="background: var(--primary-color); color: white; margin-right: 1rem;">
+                    Try Email Unsubscribe
+                </a>
                 <a href="index.html" class="btn-cancel">Back to Dashboard</a>
             </div>
         </div>
@@ -238,29 +273,96 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 this.token = urlParams.get('token');
                 this.email = urlParams.get('email');
+                const verifyToken = urlParams.get('verify');
 
-                if (!this.token || !this.email) {
-                    this.showError();
+                // If verification token present, verify and unsubscribe directly
+                if (verifyToken && this.email) {
+                    this.verifyAndUnsubscribe(verifyToken);
                     return;
                 }
 
-                this.loadSubscription();
+                // If permanent token present, load subscription details
+                if (this.token && this.email) {
+                    this.loadSubscription();
+                    return;
+                }
+
+                // Otherwise, show quick unsubscribe form
+                this.showQuickUnsubscribeForm();
+            }
+
+            async verifyAndUnsubscribe(verifyToken) {
+                // Keep loading state visible
+                try {
+                    const response = await fetch('https://azure-service-tags-tracker-dev.vercel.app/api/unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: this.email,
+                            verify: verifyToken
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        document.getElementById('loadingState').classList.add('hidden');
+                        document.getElementById('errorState').classList.remove('hidden');
+                        return;
+                    }
+
+                    // Show success
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('successState').classList.remove('hidden');
+                } catch (error) {
+                    console.error('Verification error:', error);
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('errorState').classList.remove('hidden');
+                }
+            }
+
+            showQuickUnsubscribeForm() {
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('quickUnsubscribeForm').classList.remove('hidden');
+
+                // Setup quick unsubscribe form handler
+                document.getElementById('quickUnsubForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.requestVerificationEmail();
+                });
             }
 
             async loadSubscription() {
                 try {
-                    // In production, this would fetch from backend
-                    const subscriptions = JSON.parse(localStorage.getItem('azureSubscriptions') || '[]');
-                    this.subscription = subscriptions.find(sub => 
-                        sub.email === this.email && 
-                        sub.unsubscribeToken === this.token &&
-                        sub.status === 'active'
-                    );
+                    // Verify token with backend API
+                    const response = await fetch('https://azure-service-tags-tracker-dev.vercel.app/api/unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: this.email,
+                            token: this.token,
+                            verify_only: true
+                        })
+                    });
 
-                    if (!this.subscription) {
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
                         this.showError();
                         return;
                     }
+
+                    // Store subscription info for display
+                    this.subscription = {
+                        email: this.email,
+                        type: result.subscription?.subscriptionType || 'all',
+                        services: result.subscription?.selectedServices || [],
+                        timestamp: result.subscription?.timestamp
+                    };
 
                     this.displaySubscriptionInfo();
                 } catch (error) {
@@ -299,18 +401,23 @@
                 btn.textContent = 'Unsubscribing...';
 
                 try {
-                    // In production, this would call backend API
-                    const subscriptions = JSON.parse(localStorage.getItem('azureSubscriptions') || '[]');
-                    const updatedSubscriptions = subscriptions.map(sub => {
-                        if (sub.email === this.email && sub.unsubscribeToken === this.token) {
-                            return { ...sub, status: 'unsubscribed', unsubscribedAt: new Date().toISOString() };
-                        }
-                        return sub;
+                    // Call backend API to unsubscribe
+                    const response = await fetch('https://azure-service-tags-tracker-dev.vercel.app/api/unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: this.email,
+                            token: this.token
+                        })
                     });
-                    localStorage.setItem('azureSubscriptions', JSON.stringify(updatedSubscriptions));
 
-                    // Simulate API delay
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Failed to unsubscribe');
+                    }
 
                     // Show success
                     document.getElementById('unsubscribeForm').classList.add('hidden');
@@ -319,10 +426,64 @@
                     console.log('Unsubscribed successfully:', this.email);
                 } catch (error) {
                     console.error('Unsubscribe error:', error);
-                    this.showMessage('Failed to unsubscribe. Please try again.', 'error');
+                    this.showMessage(error.message || 'Failed to unsubscribe. Please try again.', 'error');
                     btn.disabled = false;
                     btn.innerHTML = '🚫 Confirm Unsubscribe';
                 }
+            }
+
+            async requestVerificationEmail() {
+                const emailInput = document.getElementById('quickEmail');
+                const email = emailInput.value.trim();
+                const btn = document.getElementById('quickUnsubscribeBtn');
+                const messageBox = document.getElementById('quickMessageBox');
+
+                if (!email) {
+                    this.showQuickMessage('Please enter your email address', 'error');
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.textContent = 'Sending verification email...';
+                messageBox.style.display = 'none';
+
+                try {
+                    // Request verification email
+                    const response = await fetch('https://azure-service-tags-tracker-dev.vercel.app/api/request-unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: email
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Failed to send verification email');
+                    }
+
+                    // Show success message
+                    this.showQuickMessage('✅ Verification email sent! Please check your inbox and click the link to confirm unsubscribe. The link expires in 15 minutes.', 'success');
+                    emailInput.value = '';
+                    btn.disabled = false;
+                    btn.textContent = '🚫 Unsubscribe';
+
+                } catch (error) {
+                    console.error('Request error:', error);
+                    this.showQuickMessage(error.message || 'Failed to send verification email. Please try again.', 'error');
+                    btn.disabled = false;
+                    btn.textContent = '🚫 Unsubscribe';
+                }
+            }
+
+            showQuickMessage(message, type) {
+                const messageBox = document.getElementById('quickMessageBox');
+                messageBox.textContent = message;
+                messageBox.className = `message ${type}`;
+                messageBox.style.display = 'block';
             }
 
             showError() {

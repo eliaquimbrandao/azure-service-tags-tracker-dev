@@ -207,24 +207,24 @@ jobs:
           ENVIRONMENT: production
         run: |
           set -euo pipefail
-          
+
           echo ""
           echo "📧 Sending email notifications to subscribers..."
           echo "================================================"
-          
+
           # Check if secrets are configured
           if [ -z "$MONGODB_URI" ] || [ "$MONGODB_URI" = "" ]; then
             echo "⚠️ MONGODB_URI not configured - skipping notifications"
             exit 0
           fi
-          
+
           if [ -z "$SENDGRID_API_KEY" ] || [ "$SENDGRID_API_KEY" = "" ]; then
             echo "⚠️ SENDGRID_API_KEY not configured - skipping notifications"
             exit 0
           fi
-          
+
           # Run notification script
           python scripts/send_notifications.py
-          
+
           echo ""
           echo "✅ Email notification process completed"
