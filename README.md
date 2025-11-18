@@ -197,6 +197,8 @@ This includes:
 
 ## 🛠️ Local Development
 
+### Testing the Core Tracker
+
 ```bash
 # Test Python script
 cd scripts
@@ -208,6 +210,41 @@ cd docs
 python -m http.server 8000
 # Open http://localhost:8000
 ```
+
+### Testing Subscription API (Optional)
+
+If you're working with the email subscription feature:
+
+1. **Copy environment template**:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Configure environment variables** in `.env`:
+   - `MONGODB_URI` - Your MongoDB Atlas connection string
+   - `SENDGRID_API_KEY` - SendGrid API key for email delivery
+   - `FROM_EMAIL` - Verified sender email address
+   - `FROM_NAME` - Display name for emails
+   - `APP_URL` - Your GitHub Pages URL
+   - `ENVIRONMENT` - Set to `development` for testing
+
+3. **Install Python dependencies**:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Deploy to Vercel** (see `VERCEL_DEPLOYMENT.md` for full guide):
+
+   ```bash
+   vercel --prod
+   ```
+
+📖 **For detailed setup instructions**, see:
+
+- `MONGODB_SETUP.md` - MongoDB Atlas configuration
+- `VERCEL_DEPLOYMENT.md` - Serverless API deployment
 
 ---
 
