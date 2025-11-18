@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests pymongo[srv] sendgrid python-dotenv cryptography dnspython
 
       - name: Run Azure Service Tag Watcher
         run: |
@@ -188,3 +188,43 @@ jobs:
             # Not a failure - PR is still created
             exit 0
           fi
+
+      - name: Wait for GitHub Pages deployment
+        if: steps.commit_step.outputs.did_commit == 'true'
+        run: |
+          echo "⏳ Waiting 2 minutes for GitHub Pages to deploy updated data..."
+          sleep 120
+          echo "✅ GitHub Pages deployment should be complete"
+
+      - name: Send Email Notifications to Subscribers
+        if: steps.commit_step.outputs.did_commit == 'true'
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          FROM_NAME: ${{ secrets.FROM_NAME }}
+          APP_URL: https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev
+          ENVIRONMENT: production
+        run: |
+          set -euo pipefail
+          
+          echo ""
+          echo "📧 Sending email notifications to subscribers..."
+          echo "================================================"
+          
+          # Check if secrets are configured
+          if [ -z "$MONGODB_URI" ] || [ "$MONGODB_URI" = "" ]; then
+            echo "⚠️ MONGODB_URI not configured - skipping notifications"
+            exit 0
+          fi
+          
+          if [ -z "$SENDGRID_API_KEY" ] || [ "$SENDGRID_API_KEY" = "" ]; then
+            echo "⚠️ SENDGRID_API_KEY not configured - skipping notifications"
+            exit 0
+          fi
+          
+          # Run notification script
+          python scripts/send_notifications.py
+          
+          echo ""
+          echo "✅ Email notification process completed"
