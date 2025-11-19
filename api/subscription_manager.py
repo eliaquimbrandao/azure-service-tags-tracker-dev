@@ -39,7 +39,7 @@ class SubscriptionManager:
     
     def create_subscription(self, subscription_data: Dict) -> Dict:
         """
-        Create new subscription in database
+        Create new subscription or reactivate existing unsubscribed one
         
         Args:
             subscription_data: {
@@ -55,7 +55,7 @@ class SubscriptionManager:
         try:
             email = subscription_data.get('email', '').lower().strip()
             
-            # Check if email already subscribed
+            # Check if email already has an active subscription
             if self.is_email_subscribed(email):
                 return {
                     'success': False,
@@ -63,7 +63,45 @@ class SubscriptionManager:
                     'code': 'DUPLICATE_EMAIL'
                 }
             
-            # Prepare subscription document
+            # Check if there's an unsubscribed record to reactivate
+            existing = self.collection.find_one({
+                'email': email,
+                'status': 'unsubscribed'
+            })
+            
+            if existing:
+                # Reactivate existing subscription with updated preferences
+                result = self.collection.update_one(
+                    {'_id': existing['_id']},
+                    {
+                        '$set': {
+                            'status': 'active',
+                            'subscriptionType': subscription_data.get('subscriptionType', 'all'),
+                            'selectedServices': subscription_data.get('selectedServices', []),
+                            'selectedRegions': subscription_data.get('selectedRegions', []),
+                            'updated_at': datetime.utcnow(),
+                            'resubscribed_at': datetime.utcnow()
+                        },
+                        '$unset': {
+                            'unsubscribed_at': '',
+                            'unsubscribe_method': ''
+                        }
+                    }
+                )
+                
+                if result.modified_count > 0:
+                    return {
+                        'success': True,
+                        'subscription': {
+                            'id': existing['id'],
+                            'email': existing['email'],
+                            'unsubscribe_token': existing['unsubscribe_token'],
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'reactivated': True
+                        }
+                    }
+            
+            # Create new subscription if no existing record
             subscription = {
                 'id': self.generate_subscription_id(),
                 'email': email,
