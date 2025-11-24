@@ -6,6 +6,10 @@ Run this script when changes are detected to notify subscribers.
 import json
 import sys
 from pathlib import Path
+
+# Add parent directory to path so we can import api module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from api import db_config, SubscriptionManager, EmailService
 
 
