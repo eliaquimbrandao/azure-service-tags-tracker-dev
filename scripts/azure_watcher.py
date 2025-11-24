@@ -126,9 +126,23 @@ def load_previous_data() -> Optional[Dict]:
     if current_file.exists():
         try:
             with open(current_file, 'r') as f:
+                logging.info("Loaded previous data from current.json")
                 return json.load(f)
         except Exception as e:
-            logging.warning(f"Could not load previous data: {e}")
+            logging.warning(f"Could not load previous data from current.json: {e}")
+    
+    # Fallback: load from most recent history file
+    history_dir = Path('docs/data/history')
+    if history_dir.exists():
+        history_files = sorted(history_dir.glob('*.json'), reverse=True)
+        if history_files:
+            try:
+                with open(history_files[0], 'r') as f:
+                    logging.info(f"Loaded previous data from {history_files[0].name}")
+                    return json.load(f)
+            except Exception as e:
+                logging.warning(f"Could not load previous data from history: {e}")
+    
     return None
 
 def detect_changes(old_data: Optional[Dict], new_data: Dict) -> List[Dict]:
