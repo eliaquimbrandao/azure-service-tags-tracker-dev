@@ -1,13 +1,116 @@
 {
-  "last_updated": "2025-12-01T01:00:55.489443+00:00",
-  "total_services": 3057,
-  "total_ip_ranges": 96725,
-  "changes_this_week": 0,
-  "ip_changes": 0,
-  "service_additions": 0,
+  "last_updated": "2025-12-08T00:52:23.777348+00:00",
+  "total_services": 3092,
+  "total_ip_ranges": 97244,
+  "changes_this_week": 148,
+  "ip_changes": 113,
+  "service_additions": 35,
   "service_removals": 0,
-  "regional_changes": {},
-  "top_active_services": [],
+  "regional_changes": {
+    "": 8,
+    "eastus3": 35,
+    "australiacentral": 2,
+    "australiaeast": 2,
+    "australiasoutheast": 2,
+    "brazilsouth": 2,
+    "canadacentral": 2,
+    "canadaeast": 2,
+    "centralindia": 2,
+    "centralus": 3,
+    "centraluseuap": 1,
+    "eastasia": 2,
+    "eastus": 2,
+    "eastus2": 2,
+    "eastus2euap": 2,
+    "centralfrance": 2,
+    "germanyn": 2,
+    "germanywc": 2,
+    "israelcentral": 2,
+    "italynorth": 2,
+    "japaneast": 2,
+    "japanwest": 2,
+    "jioindiawest": 2,
+    "koreacentral": 2,
+    "koreasouth": 2,
+    "mexicocentral": 2,
+    "northcentralus": 2,
+    "northeurope": 2,
+    "norwaye": 2,
+    "polandcentral": 2,
+    "qatarcentral": 2,
+    "southafricanorth": 2,
+    "southafricawest": 2,
+    "southcentralus": 2,
+    "southindia": 2,
+    "southeastasia": 2,
+    "spaincentral": 2,
+    "swedencentral": 2,
+    "switzerlandn": 2,
+    "uaenorth": 2,
+    "uksouth": 2,
+    "ukwest": 2,
+    "westcentralus": 2,
+    "westeurope": 2,
+    "westus": 2,
+    "westus2": 2,
+    "westus3": 2,
+    "austriaeast": 2,
+    "belgiumcentral": 1,
+    "usstagee": 1,
+    "southfrance": 1,
+    "indonesiacentral": 1,
+    "newzealandnorth": 1,
+    "norwayw": 1,
+    "southcentralus2": 1,
+    "swedensouth": 1,
+    "switzerlandw": 1,
+    "taiwannorth": 1,
+    "taiwannorthwest": 1,
+    "uaecentral": 1,
+    "westindia": 1
+  },
+  "top_active_services": [
+    {
+      "service": "AzureCloud",
+      "change_count": 246
+    },
+    {
+      "service": "AzureManagedGrafana",
+      "change_count": 112
+    },
+    {
+      "service": "AzureMonitor",
+      "change_count": 45
+    },
+    {
+      "service": "AzureMonitor.Core",
+      "change_count": 45
+    },
+    {
+      "service": "AzureSentinel",
+      "change_count": 20
+    },
+    {
+      "service": "AzureCloud.centralus",
+      "change_count": 15
+    },
+    {
+      "service": "AzureCloud.polandcentral",
+      "change_count": 15
+    },
+    {
+      "service": "AzureCloud.southcentralus2",
+      "change_count": 15
+    },
+    {
+      "service": "AzureCloud.spaincentral",
+      "change_count": 14
+    },
+    {
+      "service": "AzureCloud.eastus2",
+      "change_count": 13
+    }
+  ],
   "available_dates": [
     "2025-10-08",
     "2025-10-10",
@@ -18,6 +121,7 @@
     "2025-11-03",
     "2025-11-10",
     "2025-11-17",
-    "2025-11-24"
+    "2025-11-24",
+    "2025-12-01"
   ]
 }
