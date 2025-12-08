@@ -34,6 +34,38 @@
       }
     }
     </script>
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "What is the Azure IP range tracker?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "It is a free, open-source Azure IP range tracker that mirrors Microsoft\u2019s Service Tags JSON, highlights weekly IP changes, and keeps a searchable history for security teams."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How often are Azure Service Tags updated here?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "GitHub Actions download Microsoft\u2019s official feed every Monday at 07:00 UTC, so the dashboard, change history, and JSON API always reflect the latest Azure IP ranges."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I consume the Azure IP range data via API?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Every dataset is published under /data on GitHub Pages, letting you fetch current.json, summary.json, or any historical snapshot directly from scripts or SIEM pipelines."
+                    }
+                }
+            ]
+        }
+        </script>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>">
     <link rel="stylesheet" href="css/style.css">
@@ -218,6 +250,61 @@
                         <!-- Changes will be populated by JavaScript -->
                     </div>
                 </section>
+
+                <!-- SEO / Long-form Content -->
+                <section class="seo-content" aria-labelledby="seoHeading">
+                    <header class="section-header">
+                        <h2 id="seoHeading">Why Teams Rely on This Azure IP Range Tracker</h2>
+                        <p>Whether you manage firewalls, craft conditional access policies, or maintain allow-lists, this Azure IP range tracker keeps Microsoft Service Tags changes transparent, explainable, and easy to automate.</p>
+                    </header>
+
+                    <div class="seo-grid">
+                        <article class="seo-card">
+                            <h3>Microsoft-Sourced JSON, Updated Weekly</h3>
+                            <p>The platform pulls the official Azure Service Tags JSON every Monday at 07:00 UTC via GitHub Actions. Each run produces <code>current.json</code>, differential reports, and timestamped history so you always know when an IP range was added or retired.</p>
+                        </article>
+                        <article class="seo-card">
+                            <h3>Built for Security &amp; Networking Teams</h3>
+                            <p>Search for services like <strong>AzureStorage</strong> or regions such as <strong>East US</strong>, export change sets, and sync results with firewall automation. Optional email subscriptions summarize Azure IP range movement for stakeholders that prefer inbox alerts.</p>
+                        </article>
+                        <article class="seo-card">
+                            <h3>API &amp; Automation Friendly</h3>
+                            <p>Every dataset lives on GitHub Pages under <code>/data</code>. Tools can fetch <code>summary.json</code> to discover available dates, compare "/history/" snapshots for precise diffs, or read <code>manifest.json</code> to queue downloads. Sample scripts for PowerShell, Python, JavaScript, C#, Go, Java, and Ruby are provided in the repository.</p>
+                        </article>
+                    </div>
+
+                    <div class="faq-grid" aria-label="Azure IP Range Tracker FAQ">
+                        <article class="faq-card" data-faq>
+                            <button class="faq-toggle" aria-expanded="false">
+                                <span>What makes this different from Microsoft&apos;s raw file?</span>
+                                <span class="faq-arrow" aria-hidden="true">▼</span>
+                            </button>
+                            <div class="faq-body" hidden>
+                                <p>Microsoft publishes a single JSON, but this tracker layers on weekly comparisons, searchable UI, analytics, and long-term archives. You can quickly answer questions like “When did AzureCloud.eastus change?” without diffing files manually.</p>
+                            </div>
+                        </article>
+                        <article class="faq-card" data-faq>
+                            <button class="faq-toggle" aria-expanded="false">
+                                <span>Can I monitor Azure IP changes without forking?</span>
+                                <span class="faq-arrow" aria-hidden="true">▼</span>
+                            </button>
+                            <div class="faq-body" hidden>
+                                <p>Yes. Point your scripts to <code>https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev/data/</code> (or your fork&apos;s Pages URL) and query the JSON endpoints directly. No API keys, rate limits, or authentication flows required.</p>
+                            </div>
+                        </article>
+                        <article class="faq-card" data-faq>
+                            <button class="faq-toggle" aria-expanded="false">
+                                <span>How do I get alerted when Service Tags move?</span>
+                                <span class="faq-arrow" aria-hidden="true">▼</span>
+                            </button>
+                            <div class="faq-body" hidden>
+                                <p>Use the built-in <a href="subscribe.html">email subscription</a> powered by MongoDB + SendGrid, or wire the JSON feeds into your SIEM/DevOps pipelines. The <a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev/blob/main/examples/api-usage-examples.md" target="_blank" rel="noopener noreferrer">API usage guide</a> includes ready-to-run automation snippets.</p>
+                            </div>
+                        </article>
+                    </div>
+
+                    <p class="seo-note">Need deep dives into automation? Read the <a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev/blob/main/examples/api-usage-examples.md" target="_blank" rel="noopener noreferrer">Azure IP range tracker integration doc</a> for curl, PowerShell, Python, and SIEM-focused walkthroughs.</p>
+                </section>
             </div>
 
             <!-- Service Details Modal -->
@@ -268,6 +355,7 @@
 
     <script src="js/dashboard.js"></script>
     <script src="js/scroll-handler.js"></script>
+    <script src="js/faq.js"></script>
 </body>
 
 </html>

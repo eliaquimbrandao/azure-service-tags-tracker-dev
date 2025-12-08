@@ -9,6 +9,7 @@
 [![GitHub Pages](https://img.shields.io/badge/GitHub_Pages-222222?logo=github&logoColor=white)](https://pages.github.com/)
 [![Azure](https://img.shields.io/badge/Azure-Service_Tags-0078D4?logo=microsoft-azure&logoColor=white)](https://docs.microsoft.com/en-us/azure/virtual-network/service-tags-overview)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Workflow Status](https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev/actions/workflows/update-data.yml/badge.svg)](https://github.com/eliaquimbrandao/azure-service-tags-tracker-dev/actions/workflows/update-data.yml)
 
 🌐 **Live Dashboard**: [View Dev Environment](https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev)
 
@@ -17,6 +18,22 @@
 A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service Tags and IP ranges using GitHub Actions + GitHub Pages. No hosting costs, no server maintenance.
 
 **Built to help the Azure community** track infrastructure changes, improve security posture, and automate network management.
+
+## Highlights
+
+- 100% serverless: GitHub Actions + GitHub Pages pipeline, no infrastructure to babysit
+- Weekly Microsoft sync at **Monday 07:00 UTC** with automatic publishing and historical archiving
+- Rich dashboard (search, analytics, history) plus optional email subscriptions powered by MongoDB + SendGrid
+- Public JSON API for anyone who just needs the data—no fork required
+- Example scripts in PowerShell/Python/JavaScript/C#/Go/Java/Ruby for instant automation onboarding
+
+---
+
+## Status at a Glance
+
+- `Update Azure Service Tags` workflow runs every Monday 07:00 UTC (badge above reflects latest run)
+- GitHub Pages deploys automatically from `main/docs` after each data commit
+- Latest production data lives under `docs/data/` and is mirrored on the live dashboard within a minute of each workflow finishing
 
 ---
 
@@ -59,6 +76,10 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 
 ## ⚡ Quick Start
 
+### Only need the public API?
+
+Skip the fork and point your tooling to [`https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev`](https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev). The [API section](#api-access--usage) lists every JSON feed along with payload sizes so you can script against the live dataset immediately.
+
 ### 1. Fork & Setup (2 minutes)
 
 ```bash
@@ -97,6 +118,7 @@ azure-service-tags-tracker-dev/
 │   ├── __init__.py               # Package initializer
 │   ├── db_config.py              # MongoDB connection manager
 │   ├── email_service.py          # SendGrid email delivery
+│   ├── request_unsubscribe.py    # Lightweight email-based unsubscribe entry point
 │   ├── subscribe.py              # Subscription endpoint handler
 │   ├── unsubscribe.py            # Unsubscribe endpoint handler
 │   └── subscription_manager.py   # Subscription business logic
@@ -106,6 +128,8 @@ azure-service-tags-tracker-dev/
 │   ├── history.html              # Change history timeline
 │   ├── subscribe.html            # Email subscription form
 │   ├── unsubscribe.html          # Unsubscribe confirmation page
+│   ├── sitemap.xml               # SEO sitemap for GitHub Pages
+│   ├── google3bb6cb6c1d46f458.html # Google Search Console verification
 │   ├── js/
 │   │   ├── dashboard.js          # Core JavaScript (6000+ lines)
 │   │   ├── subscription.js       # Subscription form handler
@@ -218,15 +242,17 @@ All data is publicly accessible as JSON via GitHub Pages. You can integrate this
 
 ### Quick Reference
 
-**Base URL**: `https://yourusername.github.io/azure-service-tags-tracker`
+**Base URL (dev environment)**: [`https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev`](https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev)  
+*(Forks should replace `eliaquimbrandao` with their GitHub username; the data folder structure stays the same.)*
 
-**Available Endpoints**:
-
-- `/data/current.json` - Latest Azure Service Tags snapshot
-- `/data/summary.json` - Statistics and available dates
-- `/data/changes/latest-changes.json` - Most recent changes
-- `/data/changes/manifest.json` - Index of all change reports
-- `/data/history/YYYY-MM-DD.json` - Historical snapshots
+| Endpoint | Description | Typical payload | Notes |
+| --- | --- | --- | --- |
+| `/data/current.json` | Latest Microsoft raw Service Tags feed | 4–6 MB | Mirrors Microsoft data; ideal for ad-hoc inspection |
+| `/data/summary.json` | Tracker statistics and available dates | <100 KB | Fast metadata lookup + available history list |
+| `/data/history/YYYY-MM-DD.json` | Historical snapshots | 4–6 MB | Compare adjacent days for precise IP diffs |
+| `/data/changes/latest-changes.json` | Most recent computed diff | 50–200 KB | Great for dashboards or chatops alerts |
+| `/data/changes/YYYY-MM-DD-changes.json` | Diffs for a specific date | 50–200 KB | Deterministic auditing of older runs |
+| `/data/changes/manifest.json` | Index of change files with sizes | <50 KB | Build download queues or detect new files |
 
 ### Complete Integration Examples
 
@@ -306,6 +332,19 @@ If you're working with the email subscription feature:
 | Dashboard empty | Run baseline setup first with checkbox enabled |
 | No data loading | Verify `docs/data/current.json` exists and is valid JSON |
 | Pages not working | Settings → Pages → Deploy from `main` branch, `/docs` folder |
+| Email subscriptions failing | Double-check `.env` secrets (MongoDB URI, SendGrid key, FROM email) and redeploy Vercel after updates |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! To propose improvements:
+
+1. Fork the repo and create a feature branch (`git checkout -b feature/my-change`).
+2. Run the baseline workflow or local scripts relevant to your change (docs updates? run `python -m http.server`; API changes? run the corresponding script/tests).
+3. Commit with clear messages and open a Pull Request describing the motivation plus any screenshots/logs.
+
+Check the existing Issues tab or open a new issue if you want to propose larger changes before implementing them.
 
 ---
 

@@ -6,20 +6,45 @@ This document shows how to use the Azure Service Tags & IP Ranges Tracker as a p
 
 ## 📡 Base URL
 
-```
-https://eliaquimbrandao.github.io/azure-service-tags-tracker
-```
+Base path: [`https://eliaquimbrandao.github.io/azure-service-tags-tracker`](https://eliaquimbrandao.github.io/azure-service-tags-tracker)
+
+- HTTPS only, no auth required.
+- CORS is enabled, so you can call the endpoints directly from browser code or static sites.
 
 ## 📁 Available API Endpoints
 
-### Data Endpoints
+| Endpoint | Description | Typical payload | Notes |
+| --- | --- | --- | --- |
+| `/data/current.json` | Latest Microsoft raw Service Tags feed | 4–6 MB | Mirrors Microsoft structure; good for one-off spot checks |
+| `/data/summary.json` | Tracker statistics and available dates | <100 KB | Fast metadata lookup for automation |
+| `/data/history/YYYY-MM-DD.json` | Daily raw snapshot | 4–6 MB | Compare adjacent days for accurate diffing |
+| `/data/changes/latest-changes.json` | Most recent computed diff | 50–200 KB | Aggregated results from last run |
+| `/data/changes/YYYY-MM-DD-changes.json` | Diffs for a specific date | 50–200 KB | Deterministic auditing for past runs |
+| `/data/changes/manifest.json` | Index of all change files with sizes | <50 KB | Helpful for building download queues |
 
-- **Current Data**: `/data/current.json` - Latest Azure Service Tags snapshot
-- **Summary**: `/data/summary.json` - Statistics and available dates
-- **Historical Snapshots**: `/data/history/YYYY-MM-DD.json` - Daily snapshots
-- **Latest Changes**: `/data/changes/latest-changes.json` - Most recent changes
-- **Historical Changes**: `/data/changes/YYYY-MM-DD-changes.json` - Specific date changes
-- **Changes Manifest**: `/data/changes/manifest.json` - Index of all change reports
+> ⏱️ GitHub Pages typically responds within 150–250 ms; downloading an entire historical snapshot over broadband takes ~0.5 s.
+
+## 🧩 Use Directly from Your Pages
+
+Because everything is static JSON, you can fetch data straight from the dashboard site without standing up a proxy. Example browser snippet:
+
+```javascript
+const BASE_URL = 'https://eliaquimbrandao.github.io/azure-service-tags-tracker';
+
+async function loadLatestChanges() {
+    const resp = await fetch(`${BASE_URL}/data/changes/latest-changes.json`, {
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!resp.ok) throw new Error('Failed to fetch change feed');
+    return resp.json();
+}
+
+loadLatestChanges()
+    .then(data => console.log('Latest change window:', data.timestamp))
+    .catch(console.error);
+```
+
+Pair the call with `summary.json` to know which historical files exist before kicking off larger downloads.
 
 ### Key Fields in Data
 
@@ -59,6 +84,45 @@ https://eliaquimbrandao.github.io/azure-service-tags-tracker
 - **Cons**: Requires fetching and comparing JSON files
 
 **💡 Recommendation**: Use **Method 2** for production monitoring to ensure you catch all IP changes.
+
+---
+
+### Payload & Performance Tips
+
+- `summary.json`, `manifest.json`, and `latest-changes.json` remain under 200 KB, so fetch them frequently to detect fresh data without worrying about bandwidth.
+- Historical snapshots (`/data/history/...`) mirror Microsoft's large JSON. Retrieve only the days you truly need and reuse locally cached copies to avoid repeatedly downloading 5–6 MB files.
+- Respect GitHub Pages caching: send `If-None-Match` headers or reuse the CDN-provided ETag to skip downloads when nothing changed.
+- When scripting from CI or Functions, parallelize at most 2–3 downloads at a time—this keeps response latency predictable (~0.5 s per snapshot on broadband).
+
+---
+
+## ⚡ Quick Start (curl + jq)
+
+Need a fast manual audit? The snippet below grabs the newest change report and prints services that added/removed IPs.
+
+```bash
+BASE="https://eliaquimbrandao.github.io/azure-service-tags-tracker"
+LATEST_FILE=$(curl -s "$BASE/data/changes/manifest.json" \
+    | jq -r '.files | max_by(.date).filename')
+
+echo "Latest change file: $LATEST_FILE"
+curl -s "$BASE/data/changes/$LATEST_FILE" \
+    | jq -r '.changes[] | select((.added|length)+(.removed|length) > 0) |
+            "\(.service) → +\(.added|length) / -\(.removed|length)"' |
+    head -n 20
+```
+
+Sample output:
+
+```text
+Latest change file: 2025-12-08-changes.json
+AzureCloud.eastus → +6 / -0
+AzureMonitor → +2 / -1
+AzureKeyVault → +0 / -4
+...
+```
+
+Use the filename to fetch the full JSON or plug the service into the dashboard for detailed IPs.
 
 ---
 
@@ -188,7 +252,7 @@ Test-AzureServiceChanges -ServiceName "AzureKeyVault"
 
 **Example Output:**
 
-```
+```text
 🔍 Checking if 'Storage' had ANY changes in collected history...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -336,48 +400,47 @@ if __name__ == "__main__":
 
 ### Key Concepts for Any Language
 
-**Step 1: Auto-Discover Available Dates**
+#### Step 1: Auto-Discover Available Dates
 
-```
+```text
 GET /data/summary.json
-→ Extract: summary.available_dates[] 
+→ Extract: summary.available_dates[]
 → Fallback: GET /data/changes/manifest.json → Extract: files[].date
 → Sort dates chronologically
 ```
 
-**Step 2: Fetch Historical Snapshots**
+#### Step 2: Fetch Historical Snapshots
 
-```
+```text
 For each consecutive date pair (date1, date2):
-  GET /data/history/{date1}.json
-  GET /data/history/{date2}.json
+    GET /data/history/{date1}.json
+    GET /data/history/{date2}.json
 ```
 
-**Step 3: Compare IP Address Lists**
+#### Step 3: Compare IP Address Lists
 
-```
+```text
 For each service matching your search:
-  ips1 = snapshot1.values[].properties.addressPrefixes
-  ips2 = snapshot2.values[].properties.addressPrefixes
+    ips1 = snapshot1.values[].properties.addressPrefixes
+    ips2 = snapshot2.values[].properties.addressPrefixes
   
-  added_ips = ips2 - ips1 (set difference)
-  removed_ips = ips1 - ips2 (set difference)
+    added_ips = ips2 - ips1 (set difference)
+    removed_ips = ips1 - ips2 (set difference)
   
-  If added_ips OR removed_ips:
-    → Record change event
+    If added_ips OR removed_ips:
+        → Record change event
 ```
 
-**Step 4: Display Results**
+#### Step 4: Display Results
 
-```
+```text
 Output: Service name, date range, +/- IP counts
 Link to dashboard for detailed IP lists
 ```
 
 ### Quick Start for Popular Languages
 
-<details>
-<summary><strong>JavaScript / Node.js</strong></summary>
+#### JavaScript / Node.js
 
 ```javascript
 // Use fetch() or axios for HTTP requests
@@ -390,10 +453,7 @@ const added = ips2.filter(ip => !ips1.includes(ip));
 const removed = ips1.filter(ip => !ips2.includes(ip));
 ```
 
-</details>
-
-<details>
-<summary><strong>C# / .NET</strong></summary>
+#### C# / .NET
 
 ```csharp
 // Use HttpClient for requests
@@ -407,10 +467,7 @@ var added = ips2.Except(ips1);
 var removed = ips1.Except(ips2);
 ```
 
-</details>
-
-<details>
-<summary><strong>Go</strong></summary>
+#### Go
 
 ```go
 // Use net/http for requests
@@ -428,10 +485,7 @@ for _, ip := range ips2 {
 }
 ```
 
-</details>
-
-<details>
-<summary><strong>Java</strong></summary>
+#### Java
 
 ```java
 // Use HttpClient or OkHttp for requests
@@ -448,10 +502,7 @@ List<String> removed = new ArrayList<>(ips1);
 removed.removeAll(ips2);
 ```
 
-</details>
-
-<details>
-<summary><strong>Ruby</strong></summary>
+#### Ruby
 
 ```ruby
 # Use net/http or httparty gem
@@ -467,8 +518,6 @@ dates = summary['available_dates'].sort
 added = ips2 - ips1
 removed = ips1 - ips2
 ```
-
-</details>
 
 ---
 
