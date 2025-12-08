@@ -185,10 +185,10 @@
                 <section class="search-section">
                     <div class="search-container">
                         <h2 class="search-title">🔍 Global Search</h2>
-                        <p class="search-subtitle">Search for any service or region to view detailed changes</p>
+                        <p class="search-subtitle">Search for any service, region, or IP range to view detailed changes</p>
                         <div class="search-box">
                             <input type="text" id="globalSearch" class="search-input"
-                                placeholder="Type a service name (e.g., Storage, AppService) or region (e.g., East US, West Europe)..."
+                                placeholder="Type a service (Storage), region (East US), or IP (20.51.53.8/29)..."
                                 autocomplete="off">
                             <button class="search-clear" id="searchClear" title="Clear search">✕</button>
                         </div>
@@ -198,8 +198,10 @@
                                     onclick="dashboard.searchExample('AzureMachineLearning')">AzureMachineLearning</button></span>
                             <span class="search-hint-item">💡 Try: <button class="search-example"
                                     onclick="dashboard.searchExample('StorageSyncService')">StorageSyncService</button></span>
-                            <span class="search-hint-item">💡 Try: <button class="search-example"
+                                <span class="search-hint-item">💡 Try: <button class="search-example"
                                     onclick="dashboard.searchExample('East US')">East US</button></span>
+                                <span class="search-hint-item">💡 Try: <button class="search-example"
+                                    onclick="dashboard.searchExample('20.51.53.8')">20.51.53.8</button></span>
                         </div>
                     </div>
                 </section>

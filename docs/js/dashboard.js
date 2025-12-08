@@ -105,6 +105,7 @@ class AzureServiceTagsDashboard {
         this.servicesPage = 1;
         this.servicesContainer = null;
         this.recentChangesPage = 1;
+        this.activeIpQuery = '';
 
         this.init();
     }
@@ -3386,6 +3387,8 @@ class AzureServiceTagsDashboard {
         const allChanges = modal.allChanges;
         const displayLimit = modal.displayLimit;
 
+        this.setActiveIpQuery(searchTerm);
+
         let filteredChanges = allChanges;
 
         if (searchTerm.trim()) {
@@ -4034,6 +4037,7 @@ class AzureServiceTagsDashboard {
             const removedCount = change.removed_count || 0;
             const addedPrefixes = change.added_prefixes || [];
             const removedPrefixes = change.removed_prefixes || [];
+            const renderIP = (ip, klass) => `<div class="ip-item ${klass}">${this.highlightIPValue(ip)}</div>`;
 
             // Show all IPs with expand/collapse for large lists
             const collapseThreshold = 10;
@@ -4061,10 +4065,10 @@ class AzureServiceTagsDashboard {
                                     <strong>Added IPs:</strong>
                                 </div>
                                 <div class="ip-list-styled">
-                                    ${addedPrefixes.slice(0, collapseThreshold).map(ip => `<div class="ip-item added-ip">${ip}</div>`).join('')}
+                                    ${addedPrefixes.slice(0, collapseThreshold).map(ip => renderIP(ip, 'added-ip')).join('')}
                                     ${addedPrefixes.length > collapseThreshold ? `
                                         <div class="ip-hidden" id="added-${uniqueId}" style="display:none;">
-                                            ${addedPrefixes.slice(collapseThreshold).map(ip => `<div class="ip-item added-ip">${ip}</div>`).join('')}
+                                            ${addedPrefixes.slice(collapseThreshold).map(ip => renderIP(ip, 'added-ip')).join('')}
                                         </div>
                                         <button class="show-more-btn" onclick="dashboard.toggleIPs('added-${uniqueId}', this)">
                                             ➕ Show ${addedPrefixes.length - collapseThreshold} more
@@ -4084,10 +4088,10 @@ class AzureServiceTagsDashboard {
                                     <strong>Removed IPs:</strong>
                                 </div>
                                 <div class="ip-list-styled">
-                                    ${removedPrefixes.slice(0, collapseThreshold).map(ip => `<div class="ip-item removed-ip">${ip}</div>`).join('')}
+                                    ${removedPrefixes.slice(0, collapseThreshold).map(ip => renderIP(ip, 'removed-ip')).join('')}
                                     ${removedPrefixes.length > collapseThreshold ? `
                                         <div class="ip-hidden" id="removed-${uniqueId}" style="display:none;">
-                                            ${removedPrefixes.slice(collapseThreshold).map(ip => `<div class="ip-item removed-ip">${ip}</div>`).join('')}
+                                            ${removedPrefixes.slice(collapseThreshold).map(ip => renderIP(ip, 'removed-ip')).join('')}
                                         </div>
                                         <button class="show-more-btn" onclick="dashboard.toggleIPs('removed-${uniqueId}', this)">
                                             ➕ Show ${removedPrefixes.length - collapseThreshold} more
@@ -4158,7 +4162,7 @@ class AzureServiceTagsDashboard {
                         ${addedIPs.length > 0 ? `<button class="copy-btn-small copy-ips-btn" data-ips="${this.escapeForDataAttr(JSON.stringify(addedIPs))}" data-label="added IPs for ${this.escapeForDataAttr(change.service)}">📋 Copy</button>` : ''}
                     </div>
                     <div class="ip-list">
-                        ${displayedAddedIPs.map(ip => `<code class="ip-range added">${ip}</code>`).join('')}
+                        ${displayedAddedIPs.map(ip => `<code class="ip-range added">${this.highlightIPValue(ip)}</code>`).join('')}
                         ${addedIPs.length > displayLimit ? `<span class="more-ips">... and ${addedIPs.length - displayLimit} more</span>` : ''}
                     </div>
                 </div>
@@ -4173,7 +4177,7 @@ class AzureServiceTagsDashboard {
                         ${removedIPs.length > 0 ? `<button class="copy-btn-small copy-ips-btn" data-ips="${this.escapeForDataAttr(JSON.stringify(removedIPs))}" data-label="removed IPs for ${this.escapeForDataAttr(change.service)}">📋 Copy</button>` : ''}
                     </div>
                     <div class="ip-list">
-                        ${displayedRemovedIPs.map(ip => `<code class="ip-range removed">${ip}</code>`).join('')}
+                        ${displayedRemovedIPs.map(ip => `<code class="ip-range removed">${this.highlightIPValue(ip)}</code>`).join('')}
                         ${removedIPs.length > displayLimit ? `<span class="more-ips">... and ${removedIPs.length - displayLimit} more</span>` : ''}
                     </div>
                 </div>
@@ -4216,6 +4220,32 @@ class AzureServiceTagsDashboard {
         return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    escapeRegExp(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    setActiveIpQuery(query) {
+        if (query && /[0-9.:/]/.test(query)) {
+            this.activeIpQuery = query.trim();
+        } else {
+            this.activeIpQuery = '';
+        }
+    }
+
+    highlightIPValue(ip) {
+        if (!this.activeIpQuery || this.activeIpQuery.length < 2) {
+            return ip;
+        }
+
+        try {
+            const pattern = this.escapeRegExp(this.activeIpQuery);
+            const regex = new RegExp(pattern, 'gi');
+            return ip.replace(regex, match => `<mark class="ip-highlight">${match}</mark>`);
+        } catch (error) {
+            return ip;
+        }
+    }
+
     // Global Search Functionality
     initializeGlobalSearch() {
         const searchInput = document.getElementById('globalSearch');
@@ -4236,6 +4266,7 @@ class AzureServiceTagsDashboard {
             } else {
                 searchClear.classList.remove('visible');
                 searchResults.classList.add('hidden');
+                this.setActiveIpQuery('');
                 return;
             }
 
@@ -4251,6 +4282,7 @@ class AzureServiceTagsDashboard {
             searchInput.value = '';
             searchClear.classList.remove('visible');
             searchResults.classList.add('hidden');
+            this.setActiveIpQuery('');
             searchInput.focus();
         });
 
@@ -4266,8 +4298,15 @@ class AzureServiceTagsDashboard {
     }
 
     async performGlobalSearch(query) {
+        const trimmedQuery = query.trim();
+        if (!trimmedQuery) {
+            return;
+        }
+
         const searchResults = document.getElementById('searchResults');
-        const queryLower = query.toLowerCase();
+        const queryLower = trimmedQuery.toLowerCase();
+
+        this.setActiveIpQuery(trimmedQuery);
 
         // Show loading state
         searchResults.innerHTML = `
@@ -4282,8 +4321,9 @@ class AzureServiceTagsDashboard {
             // Load all historical changes from manifest
             const allChanges = await this.loadAllHistoricalChanges();
 
-            // Search in services
             const serviceMatches = new Map();
+            const regionMatches = new Map();
+            const ipMatches = new Map();
 
             allChanges.forEach(({ date, changes }) => {
                 changes.forEach(change => {
@@ -4310,14 +4350,7 @@ class AzureServiceTagsDashboard {
                         match.totalIPAdded += (change.added_count || 0);
                         match.totalIPRemoved += (change.removed_count || 0);
                     }
-                });
-            });
 
-            // Search in regions
-            const regionMatches = new Map();
-
-            allChanges.forEach(({ date, changes }) => {
-                changes.forEach(change => {
                     const region = change.region || '';
                     const displayName = region ? getRegionDisplayName(region) : '🌐 Global';
 
@@ -4332,22 +4365,57 @@ class AzureServiceTagsDashboard {
                                 totalChanges: 0
                             });
                         }
-                        const match = regionMatches.get(region);
-                        match.occurrences.push({
+                        const regionMatch = regionMatches.get(region);
+                        regionMatch.occurrences.push({
                             date: date,
                             change: change
                         });
-                        match.totalChanges++;
+                        regionMatch.totalChanges++;
                     }
+
+                    const addedIPs = change.added_prefixes || change.added || [];
+                    const removedIPs = change.removed_prefixes || change.removed || [];
+                    const handleIpMatch = (ipValue, action) => {
+                        if (!ipValue) return;
+                        const ipText = ipValue.toLowerCase();
+                        if (!ipText.includes(queryLower)) return;
+
+                        if (!ipMatches.has(ipValue)) {
+                            ipMatches.set(ipValue, {
+                                type: 'ip',
+                                ip: ipValue,
+                                occurrences: [],
+                                addedCount: 0,
+                                removedCount: 0
+                            });
+                        }
+
+                        const ipMatch = ipMatches.get(ipValue);
+                        ipMatch.occurrences.push({
+                            date: date,
+                            service: serviceName || 'Unknown service',
+                            region: change.region || '',
+                            action: action,
+                            change: change
+                        });
+                        if (action === 'added') {
+                            ipMatch.addedCount++;
+                        } else {
+                            ipMatch.removedCount++;
+                        }
+                    };
+
+                    addedIPs.forEach(ip => handleIpMatch(ip, 'added'));
+                    removedIPs.forEach(ip => handleIpMatch(ip, 'removed'));
                 });
             });
 
-            // Convert Maps to Arrays
             const services = Array.from(serviceMatches.values());
             const regions = Array.from(regionMatches.values());
+            const ips = Array.from(ipMatches.values());
 
             // Display results
-            this.displayHistoricalSearchResults(services, regions, query);
+            this.displayHistoricalSearchResults(services, regions, ips, trimmedQuery);
 
         } catch (error) {
             console.error('Error searching historical data:', error);
@@ -4414,16 +4482,16 @@ class AzureServiceTagsDashboard {
         return allChanges;
     }
 
-    displayHistoricalSearchResults(services, regions, query) {
+    displayHistoricalSearchResults(services, regions, ips, query) {
         const searchResults = document.getElementById('searchResults');
 
-        if (services.length === 0 && regions.length === 0) {
+        if (services.length === 0 && regions.length === 0 && ips.length === 0) {
             searchResults.innerHTML = `
                 <div class="search-no-results">
                     <div class="search-no-results-icon">🔍</div>
                     <div>No results found for "<strong>${query}</strong>" in historical changes</div>
                     <div style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
-                        Try searching for service names like "Storage", "AzureAD" or regions like "East US"
+                        Try searching for service names like "Storage", regions like "East US" or IP ranges like "20.51.53.8".
                     </div>
                 </div>
             `;
@@ -4434,7 +4502,7 @@ class AzureServiceTagsDashboard {
         let html = '<div class="search-results-header">Found in historical changes:</div>';
 
         // Store data for click handlers
-        this.historicalSearchData = { services, regions };
+        this.historicalSearchData = { services, regions, ips };
 
         // Display service results
         if (services.length > 0) {
@@ -4483,6 +4551,29 @@ class AzureServiceTagsDashboard {
             });
         }
 
+        // Display IP results
+        if (ips.length > 0) {
+            html += '<div class="search-category-header">📡 IP Ranges</div>';
+            ips.forEach((ipMatch, index) => {
+                const uniqueServices = new Set(ipMatch.occurrences.map(o => o.service)).size;
+                const changeCount = ipMatch.occurrences.length;
+
+                html += `
+                    <div class="search-result-item historical" data-type="ip" data-index="${index}">
+                        <div class="search-result-info">
+                            <div class="search-result-name">${ipMatch.ip}</div>
+                            <div class="search-result-meta">
+                                📌 Appears in ${changeCount} change${changeCount !== 1 ? 's' : ''} across ${uniqueServices} service${uniqueServices !== 1 ? 's' : ''}<br>
+                                <span style="color: var(--success-color);">+${ipMatch.addedCount} additions</span> • 
+                                <span style="color: var(--danger-color);">-${ipMatch.removedCount} removals</span>
+                            </div>
+                        </div>
+                        <span class="search-result-badge ip">IP</span>
+                    </div>
+                `;
+            });
+        }
+
         searchResults.innerHTML = html;
         searchResults.classList.remove('hidden');
 
@@ -4502,6 +4593,10 @@ class AzureServiceTagsDashboard {
                     const region = this.historicalSearchData.regions[index];
                     console.log('Showing region details:', region);
                     this.showHistoricalRegionDetails(region.name, region.occurrences);
+                } else if (type === 'ip') {
+                    const ip = this.historicalSearchData.ips[index];
+                    console.log('Showing IP details:', ip);
+                    this.showHistoricalIPDetails(ip.ip, ip.occurrences, ip.addedCount, ip.removedCount);
                 }
             });
         });
@@ -4728,6 +4823,81 @@ class AzureServiceTagsDashboard {
                         <div class="summary-stat-box">
                             <div class="summary-stat-number">${events.length}</div>
                             <div class="summary-stat-label">Change Events</div>
+                        </div>
+                    </div>
+                    <div class="historical-events-list">
+                        ${eventsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+
+        document.body.appendChild(modal);
+    }
+
+    showHistoricalIPDetails(ipAddress, occurrences, addedCount = 0, removedCount = 0) {
+        const events = typeof occurrences === 'string' ? JSON.parse(occurrences) : occurrences;
+
+        const modal = document.createElement('div');
+        modal.className = 'changes-modal-overlay';
+
+        const totalEvents = events.length;
+        const uniqueServices = new Set(events.map(e => e.service || 'Unknown service')).size;
+        const uniqueRegions = new Set(events.map(e => e.region || 'Global')).size;
+
+        const eventsHtml = events.map(event => {
+            const serviceName = event.service || 'Unknown service';
+            const regionLabel = event.region ? getRegionDisplayName(event.region) : '🌐 Global';
+            const statusBadge = event.action === 'added'
+                ? '<span style="color: var(--success-color); font-weight: 600;">Added</span>'
+                : '<span style="color: var(--danger-color); font-weight: 600;">Removed</span>';
+
+            return `
+                <div class="historical-event-item">
+                    <div class="historical-event-header">
+                        <span class="historical-event-date">📅 ${this.formatDate(event.date)}</span>
+                        <div class="historical-event-stats">
+                            ${statusBadge}
+                            <span style="margin-left: 0.5rem; color: var(--text-secondary);">${serviceName}</span>
+                            <span style="margin-left: 0.5rem; color: var(--text-secondary);">${regionLabel}</span>
+                        </div>
+                    </div>
+                    ${this.renderChangeItemDetailed(event.change)}
+                </div>
+            `;
+        }).join('');
+
+        modal.innerHTML = `
+            <div class="changes-modal">
+                <div class="changes-modal-header">
+                    <h3>📡 ${ipAddress} - Historical Matches</h3>
+                    <button onclick="this.closest('.changes-modal-overlay').remove()" class="close-modal-btn">&times;</button>
+                </div>
+                <div class="changes-modal-body">
+                    <div class="historical-summary">
+                        <div class="summary-stat-box">
+                            <div class="summary-stat-number">${totalEvents}</div>
+                            <div class="summary-stat-label">Change Events</div>
+                        </div>
+                        <div class="summary-stat-box">
+                            <div class="summary-stat-number" style="color: var(--success-color);">+${addedCount}</div>
+                            <div class="summary-stat-label">Additions</div>
+                        </div>
+                        <div class="summary-stat-box">
+                            <div class="summary-stat-number" style="color: var(--danger-color);">-${removedCount}</div>
+                            <div class="summary-stat-label">Removals</div>
+                        </div>
+                        <div class="summary-stat-box">
+                            <div class="summary-stat-number">${uniqueServices}</div>
+                            <div class="summary-stat-label">Services Impacted</div>
+                        </div>
+                        <div class="summary-stat-box">
+                            <div class="summary-stat-number">${uniqueRegions}</div>
+                            <div class="summary-stat-label">Regions Impacted</div>
                         </div>
                     </div>
                     <div class="historical-events-list">

@@ -4,6 +4,7 @@ Handles sending confirmation and notification emails.
 """
 
 import os
+from datetime import datetime
 from typing import Dict, List
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
@@ -122,34 +123,34 @@ class EmailService:
             return False
         
         try:
-            # Prepare change summary
+            # Summarize change payload for the email snapshot
             change_list = changes.get('changes', [])
-            total_changes = len(change_list)
+            services_changed = len(change_list)
             timestamp = changes.get('timestamp', 'Unknown')
-            
-            # Build HTML table for changes
-            changes_html = ""
-            for idx, change in enumerate(change_list[:20], 1):  # Limit to first 20 for email
-                service_name = change.get('service', 'Unknown')
-                added_count = len(change.get('added', []))
-                removed_count = len(change.get('removed', []))
-                
-                changes_html += f"""
-                <div class="change-item">
-                    <strong>{idx}. {service_name}</strong><br>
-                    <span style="color: #10b981;">✅ Added: {added_count} IP ranges</span><br>
-                    <span style="color: #ef4444;">❌ Removed: {removed_count} IP ranges</span>
-                </div>
-                """
-            
-            if total_changes > 20:
-                changes_html += f"""
-                <div class="change-item" style="background: #fef3c7; border-left-color: #f59e0b;">
-                    <strong>⚠️ And {total_changes - 20} more services...</strong><br>
-                    <a href="{self.app_url}/history.html">View all changes on the dashboard</a>
-                </div>
-                """
-            
+            published_date = changes.get('date') or timestamp
+            regions_changed = 0
+            added_total = 0
+            removed_total = 0
+            seen_regions = set()
+
+            for item in change_list:
+                added_total += item.get('added_count', len(item.get('added_prefixes', [])))
+                removed_total += item.get('removed_count', len(item.get('removed_prefixes', [])))
+                region = item.get('region')
+                if region:
+                    seen_regions.add(region)
+
+            if seen_regions:
+                regions_changed = len(seen_regions)
+
+            formatted_date = published_date
+            if published_date and isinstance(published_date, str):
+                try:
+                    parsed = datetime.strptime(published_date[:10], "%Y-%m-%d")
+                    formatted_date = parsed.strftime("%A, %B %d, %Y")
+                except ValueError:
+                    formatted_date = published_date
+
             html_content = f"""
             <!DOCTYPE html>
             <html>
@@ -163,13 +164,13 @@ class EmailService:
                     .header h1 {{ margin: 0; font-size: 28px; font-weight: 600; }}
                     .header p {{ margin: 10px 0 0 0; opacity: 0.9; font-size: 14px; }}
                     .content {{ padding: 30px; }}
-                    .summary {{ background: #f0f9ff; border-left: 4px solid #0284c7; padding: 20px; margin: 20px 0; border-radius: 4px; }}
-                    .summary h2 {{ margin: 0 0 15px 0; font-size: 18px; color: #0c4a6e; }}
-                    .summary-stats {{ display: flex; gap: 20px; flex-wrap: wrap; }}
-                    .stat {{ flex: 1; min-width: 120px; }}
-                    .stat-value {{ font-size: 32px; font-weight: bold; color: #0284c7; margin: 5px 0; }}
-                    .stat-label {{ font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }}
-                    .change-item {{ background: #fafafa; padding: 15px; margin: 10px 0; border-left: 4px solid #667eea; border-radius: 4px; font-size: 14px; }}
+                    .summary {{ background: #f0f9ff; border-left: 4px solid #0284c7; padding: 24px; margin: 24px 0; border-radius: 8px; }}
+                    .summary h2 {{ margin: 0 0 10px 0; font-size: 18px; color: #0c4a6e; }}
+                    .summary p {{ margin: 5px 0; color: #0f172a; font-size: 14px; }}
+                    .summary-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; margin-top: 20px; }}
+                    .stat-card {{ background: white; border-radius: 6px; padding: 16px; border: 1px solid #e2e8f0; text-align: center; }}
+                    .stat-label {{ font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }}
+                    .stat-value {{ font-size: 28px; font-weight: 600; color: #0284c7; margin-top: 6px; }}
                     .button {{ display: inline-block; padding: 14px 28px; background: #667eea; color: white !important; text-decoration: none; border-radius: 6px; margin: 25px 0; font-weight: 600; transition: background 0.3s; }}
                     .button:hover {{ background: #5568d3; }}
                     .footer {{ background: #fafafa; padding: 25px 30px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }}
@@ -186,28 +187,36 @@ class EmailService:
                     <div class="content">
                         <div class="summary">
                             <h2>📊 Change Summary</h2>
-                            <div class="summary-stats">
-                                <div class="stat">
-                                    <div class="stat-value">{total_changes}</div>
-                                    <div class="stat-label">Services Changed</div>
+                            <p><strong>{formatted_date}</strong></p>
+                            <p style="color:#475569;">Detected: {timestamp}</p>
+                            <div class="summary-grid">
+                                <div class="stat-card">
+                                    <div class="stat-label">Services</div>
+                                    <div class="stat-value">{services_changed}</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Regions</div>
+                                    <div class="stat-value">{regions_changed}</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Added IPs</div>
+                                    <div class="stat-value" style="color:#16a34a;">{added_total}</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Removed IPs</div>
+                                    <div class="stat-value" style="color:#dc2626;">{removed_total}</div>
                                 </div>
                             </div>
-                            <p style="margin-top: 15px; font-size: 13px; color: #64748b;">
-                                <strong>Detected:</strong> {timestamp}
-                            </p>
                         </div>
-                        
-                        <h3 style="margin-top: 30px; font-size: 16px; color: #1e293b;">Recent Changes:</h3>
-                        {changes_html}
-                        
+                        <p style="font-size:15px; color:#1f2937; line-height:1.8;">
+                            We detected new Azure Service Tags activity this week. Review the dashboard for a complete list of every service and IP range that changed, plus historical context and filtering tools.
+                        </p>
                         <div style="text-align: center;">
-                            <a href="{self.app_url}/history.html" class="button">📈 View Full Change History</a>
+                            <a href="{self.app_url}/history.html" class="button">📈 View Detailed Changes</a>
                         </div>
-                        
-                        <div style="margin-top: 30px; padding: 20px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 13px;">
-                            <strong>💡 What's Next?</strong><br>
-                            Review these changes to update your firewall rules, network security groups, or service endpoints accordingly.
-                        </div>
+                        <p style="font-size:13px; color:#475569; background:#eef2ff; border-left:4px solid #4338ca; padding:16px; border-radius:6px;">
+                            Tip: Bookmark the dashboard or share it with your network team so they can evaluate firewall rules, NSGs, and service endpoints whenever Microsoft publishes new IP ranges.
+                        </p>
                     </div>
                     <div class="footer">
                         <p style="margin: 0 0 10px 0;">You're receiving this because you subscribed to Azure Service Tags updates.</p>
@@ -226,7 +235,7 @@ class EmailService:
                     message = Mail(
                         from_email=Email(self.from_email, self.from_name),
                         to_emails=To(email),
-                        subject=f'🔔 Azure Service Tags Updated - {total_changes} Services Changed',
+                        subject=f'🔔 Azure Service Tags Updated - {services_changed} Services Changed',
                         html_content=Content("text/html", html_content)
                     )
                     

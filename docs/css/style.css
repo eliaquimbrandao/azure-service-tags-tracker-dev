@@ -925,6 +925,19 @@ body {
     color: #388e3c;
 }
 
+.search-result-badge.ip {
+    background: #fff4e6;
+    color: #d97706;
+}
+
+.ip-highlight {
+    background: #fff1a8;
+    color: #111;
+    padding: 0 2px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
 .search-no-results {
     padding: 3rem;
     text-align: center;
