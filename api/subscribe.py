@@ -4,7 +4,6 @@ Deploy on Vercel: /api/subscribe
 """
 
 import json
-import os
 from http.server import BaseHTTPRequestHandler
 from api.db_config import db_config
 from api.subscription_manager import SubscriptionManager

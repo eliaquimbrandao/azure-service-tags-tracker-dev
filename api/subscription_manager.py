@@ -226,62 +226,6 @@ class SubscriptionManager:
                 'error': f'Database error: {str(e)}'
             }
     
-    def unsubscribe_by_email(self, email: str) -> Dict:
-        """
-        Unsubscribe user by email only (convenience method without token)
-        Less secure but more user-friendly
-        
-        Args:
-            email: User's email address
-        
-        Returns:
-            Dict with success status
-        """
-        try:
-            email = email.lower().strip()
-            
-            # Find active subscription
-            subscription = self.collection.find_one({
-                'email': email,
-                'status': 'active'
-            })
-            
-            if not subscription:
-                return {
-                    'success': False,
-                    'error': 'No active subscription found for this email'
-                }
-            
-            # Update status to unsubscribed
-            result = self.collection.update_one(
-                {'_id': subscription['_id']},
-                {
-                    '$set': {
-                        'status': 'unsubscribed',
-                        'unsubscribed_at': datetime.utcnow(),
-                        'updated_at': datetime.utcnow(),
-                        'unsubscribe_method': 'email_only'  # Track unsubscribe method
-                    }
-                }
-            )
-            
-            if result.modified_count > 0:
-                return {
-                    'success': True,
-                    'message': 'Successfully unsubscribed'
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': 'Failed to update subscription status'
-                }
-                
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f'Database error: {str(e)}'
-            }
-    
     def create_unsubscribe_verification(self, email: str) -> Dict:
         """
         Create temporary verification token for unsubscribe request
@@ -432,28 +376,9 @@ class SubscriptionManager:
         return list(self.collection.find(query).sort('created_at', -1))
     
     def get_filtered_subscriptions(self, service_name: str = None, region: str = None) -> List[Dict]:
-        """
-        Get subscriptions filtered by service or region
-        
-        Args:
-            service_name: Azure service name to filter by
-            region: Azure region to filter by
-        
-        Returns:
-            List of matching subscriptions
-        """
-        query = {
-            'status': 'active',
-            'subscriptionType': 'filtered'
-        }
-        
-        if service_name:
-            query['selectedServices'] = service_name
-        
-        if region:
-            query['selectedRegions'] = region
-        
-        return list(self.collection.find(query))
+        # Deprecated: filtered subscription lookups are handled client-side using
+        # change payloads; keeping this signature documented for future API work.
+        raise NotImplementedError("Filtered subscription lookup is no longer in use.")
     
     def get_statistics(self) -> Dict:
         """Get subscription statistics"""

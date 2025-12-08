@@ -575,7 +575,6 @@ class SubscriptionManager {
         submitBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Submitting...</span>';
 
         try {
-            // Call API to save subscription
             const response = await fetch(`${this.apiBaseUrl}/api/subscribe`, {
                 method: 'POST',
                 headers: {
@@ -584,7 +583,12 @@ class SubscriptionManager {
                 body: JSON.stringify(subscriptionData)
             });
 
-            const result = await response.json();
+            let result = {};
+            try {
+                result = await response.json();
+            } catch (parseError) {
+                console.error('Failed to parse subscription response', parseError);
+            }
 
             if (response.ok && result.success) {
                 this.showSuccess('🎉 Subscription successful! Check your email for a confirmation message with your subscription details and unsubscribe link.');
