@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Premium Upgrade</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/subscription.css">
+</head>
+<body>
+    <main class="subscription-container" style="max-width:640px;">
+        <section class="subscription-card">
+            <div class="card-header">
+                <h2>Finish upgrading to Premium</h2>
+                <p>Set a password to activate your account.</p>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="password">Password</label>
+                <input type="password" id="password" class="form-input" placeholder="••••••••">
+            </div>
+            <div class="form-actions">
+                <button class="btn-primary" id="confirmBtn">
+                    <span class="btn-text">Activate Premium</span>
+                </button>
+            </div>
+            <div id="formMessage" class="form-message" style="display:none;"></div>
+        </section>
+    </main>
+    <script src="js/upgrade-confirm.js"></script>
+</body>
+</html>

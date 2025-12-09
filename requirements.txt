@@ -13,3 +13,5 @@ python-dotenv>=1.0.0
 
 # Security
 cryptography>=41.0.0
+pyjwt>=2.8.0
+bcrypt>=4.1.2

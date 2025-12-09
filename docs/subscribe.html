@@ -101,11 +101,6 @@
 
                     <!-- Service Filter (Hidden by default) -->
                     <div id="filterSection" class="filter-section" style="display: none;">
-                        <div class="form-group premium-locked-block" id="premiumIdGroup" style="display:none;">
-                            <label for="premiumId" class="label-text">Premium ID / Username <span class="label-required">*</span></label>
-                            <input type="text" id="premiumId" class="form-input" placeholder="Choose an ID so we can tie your premium filters" autocomplete="off">
-                            <div class="premium-overlay">Premium feature</div>
-                        </div>
                         <div class="form-group premium-locked-block">
                             <label for="targetSearch" class="label-text">Search services, regions, or IPs (Premium)</label>
                             <input type="text" id="targetSearch" class="form-input" 
@@ -215,6 +210,32 @@
             </aside>
         </div>
     </main>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="auth-modal" style="display:none;">
+        <div class="auth-modal-content">
+            <button class="auth-close" id="authClose" aria-label="Close auth form">×</button>
+            <h3 id="authModalTitle">Sign in</h3>
+            <p class="auth-subtitle">Use your account to unlock premium filters.</p>
+            <div class="form-group">
+                <label class="label-text" for="authEmail">Email</label>
+                <input type="email" id="authEmail" class="form-input" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="authPassword">Password</label>
+                <input type="password" id="authPassword" class="form-input" placeholder="••••••••">
+            </div>
+            <div class="form-group" id="authPasswordConfirmGroup" style="display:none;">
+                <label class="label-text" for="authPasswordConfirm">Confirm password</label>
+                <input type="password" id="authPasswordConfirm" class="form-input" placeholder="Repeat password">
+            </div>
+            <div class="auth-actions">
+                <button type="button" class="btn-primary" id="authSubmit">Continue</button>
+                <button type="button" class="btn-link" id="authToggle">Need an account? Create one</button>
+            </div>
+            <div class="form-message" id="authMessage" style="display:none;"></div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">

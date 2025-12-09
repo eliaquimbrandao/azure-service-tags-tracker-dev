@@ -20,7 +20,7 @@ class EmailService:
         self.api_key = os.getenv('SENDGRID_API_KEY')
         self.from_email = os.getenv('FROM_EMAIL', 'noreply@azure-tracker.com')
         self.from_name = os.getenv('FROM_NAME', 'Azure Service Tags Tracker')
-        self.app_url = os.getenv('APP_URL', 'https://eliaquimbrandao.github.io/azure-service-tags-tracker')
+        self.app_url = os.getenv('APP_URL', 'https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev')
         self.client = None
         
         if self.api_key and self.api_key != 'your_sendgrid_api_key_here':
@@ -184,6 +184,59 @@ class EmailService:
                         return cleaned[:10]
                     return cleaned
                 return str(value)
+
+            def send_upgrade_magic_link(self, email: str, link: str) -> bool:
+                """Send a short-lived magic link so the user can finalize premium and set a password."""
+                if not email:
+                    return False
+                if not link:
+                    return False
+
+                subject = "Complete your premium upgrade"
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; background: #f7f7fb; color: #1f2937; }}
+                        .container {{ max-width: 560px; margin: 0 auto; padding: 24px; }}
+                        .card {{ background: #ffffff; border-radius: 10px; padding: 24px; box-shadow: 0 10px 35px rgba(31,41,55,0.08); }}
+                        .btn {{ display: inline-block; background: #2563eb; color: #fff; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: 600; }}
+                        .muted {{ color: #6b7280; font-size: 14px; margin-top: 12px; }}
+                        .code {{ font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; background: #f3f4f6; padding: 4px 8px; border-radius: 6px; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="card">
+                            <h2>Finish upgrading to Premium</h2>
+                            <p>Click the button below to confirm your email and create a password. This link expires soon for security.</p>
+                            <p><a class="btn" href="{link}" target="_blank" rel="noopener">Complete upgrade</a></p>
+                            <p class="muted">If the button does not work, copy and paste this link into your browser:</p>
+                            <p class="code">{link}</p>
+                            <p class="muted">You are receiving this because someone requested a premium upgrade for this email.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+
+                if not self.client:
+                    print("⚠️ SendGrid not configured. Upgrade link for", email, "=>", link)
+                    return False
+
+                try:
+                    message = Mail(
+                        from_email=Email(self.from_email, self.from_name),
+                        to_emails=To(email),
+                        subject=subject,
+                        html_content=Content("text/html", html_content)
+                    )
+                    response = self.client.send(message)
+                    return response.status_code in [200, 202]
+                except Exception as e:
+                    print(f"❌ Error sending upgrade magic link: {e}")
+                    return False
 
             detected_label = _fmt_date(timestamp)
             published_label = _fmt_date(published_date)

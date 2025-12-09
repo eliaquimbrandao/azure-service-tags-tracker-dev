@@ -1,39 +1,37 @@
 """
-Serverless API endpoint to start an upgrade flow.
-If a Stripe checkout URL is configured via environment variable, we return it.
-Otherwise we provide a waitlist mailto so users have a path forward.
+Finalize premium upgrade via emailed magic link.
+Requires token from /api/upgrade email and a password to set.
 """
-
 import json
-import os
 from http.server import BaseHTTPRequestHandler
-from .auth_utils import create_action_token
-from .email_service import EmailService
+from .auth_utils import verify_action_token, create_token
+from .user_manager import user_manager
 
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length)
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length) if length else b''
             data = json.loads(body.decode('utf-8')) if body else {}
-            email = (data.get('email') or '').strip().lower()
-            if not email:
-                return self.send_json_response(400, {'success': False, 'error': 'Email is required'})
+            token = data.get('token') or ''
+            password = data.get('password') or ''
 
-            app_url = os.getenv('APP_URL', 'https://eliaquimbrandao.github.io/azure-service-tags-tracker-dev')
-            token = create_action_token(email, 'upgrade')
-            link = f"{app_url.rstrip('/')}/upgrade-confirm.html?token={token}"
+            payload = verify_action_token(token, 'upgrade')
+            if not payload:
+                return self.send_json_response(400, {"success": False, "error": "Invalid or expired link"})
 
-            email_service = EmailService()
-            email_service.send_upgrade_magic_link(email, link)
+            email = (payload.get('email') or '').strip().lower()
+            result = user_manager.upsert_premium_with_password(email, password)
+            if not result.get('success'):
+                return self.send_json_response(400, {"success": False, "error": result.get('error', 'Unable to complete upgrade')})
 
-            return self.send_json_response(200, {
-                'success': True,
-                'message': 'Check your email for the upgrade link to set a password and activate premium.'
-            })
+            user = result['user']
+            plan = user_manager.get_plan(email)
+            session_token = create_token(user, plan)
+            return self.send_json_response(200, {"success": True, "token": session_token, "plan": plan})
         except Exception as e:
-            return self.send_json_response(500, {'success': False, 'error': str(e)})
+            return self.send_json_response(500, {"success": False, "error": str(e)})
 
     def do_OPTIONS(self):
         self.send_response(200)

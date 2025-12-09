@@ -20,6 +20,22 @@
     {
       "src": "api/upgrade.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "api/upgrade_confirm.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/auth_signup.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/auth_login.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/auth_me.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -42,6 +58,22 @@
     {
       "src": "/api/upgrade",
       "dest": "/api/upgrade.py"
+    },
+    {
+      "src": "/api/upgrade_confirm",
+      "dest": "/api/upgrade_confirm.py"
+    },
+    {
+      "src": "/api/auth/signup",
+      "dest": "/api/auth_signup.py"
+    },
+    {
+      "src": "/api/auth/login",
+      "dest": "/api/auth_login.py"
+    },
+    {
+      "src": "/api/auth/me",
+      "dest": "/api/auth_me.py"
     }
   ]
 }

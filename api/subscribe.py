@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler
 from api.db_config import db_config
 from api.subscription_manager import SubscriptionManager
 from api.email_service import EmailService
+from api.auth_utils import verify_token, get_bearer_token
 
 
 class handler(BaseHTTPRequestHandler):
@@ -18,6 +19,10 @@ class handler(BaseHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             data = json.loads(body.decode('utf-8'))
+
+            # Auth: check bearer token (optional for free, required for premium)
+            token = get_bearer_token(self.headers)
+            auth_user = verify_token(token)
             
             # Connect to database
             if not db_config.connect():
@@ -26,7 +31,7 @@ class handler(BaseHTTPRequestHandler):
             
             # Create subscription
             sub_manager = SubscriptionManager()
-            result = sub_manager.create_subscription(data)
+            result = sub_manager.create_subscription(data, auth_user=auth_user)
             
             if result['success']:
                 # Send confirmation email
@@ -79,7 +84,9 @@ class handler(BaseHTTPRequestHandler):
         allowed_origins = [
             'https://eliaquimbrandao.github.io',
             'http://localhost:8000',
-            'http://127.0.0.1:8000'
+            'http://127.0.0.1:8000',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000'
         ]
         
         if origin in allowed_origins or origin == '*':
@@ -88,5 +95,5 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', allowed_origins[0])
         
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Access-Control-Max-Age', '86400')

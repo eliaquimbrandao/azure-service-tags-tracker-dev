@@ -24,6 +24,9 @@ class SubscriptionManager {
         this.premiumLocked = true; // Filtered targeting is premium-only for now
         this.planStatus = { plan: 'free', status: 'inactive', expires_at: null };
         this.devPremiumOverride = this.getPremiumOverride();
+        this.token = window.localStorage?.getItem('auth_token') || '';
+        this.currentUser = null;
+        this.authMode = 'login';
         // API endpoint - update this when deploying to Vercel
         this.apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:3000'  // Local development
@@ -220,33 +223,35 @@ class SubscriptionManager {
         // Subscription type radio buttons
         const radioButtons = document.querySelectorAll('input[name="subscriptionType"]');
         const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
-        const premiumIdGroup = document.getElementById('premiumIdGroup');
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const filterSection = document.getElementById('filterSection');
                 const submitBtn = document.getElementById('subscribeBtn');
+                const freeRadio = document.querySelector('input[name="subscriptionType"][value="all"]');
                 if (e.target.value === 'filtered') {
                     if (this.premiumLocked) {
+                        // Prompt auth when trying to access premium targeting
+                        this.showAuthModal('login');
                         if (submitBtn) {
                             submitBtn.disabled = false;
                             submitBtn.innerHTML = '<span class="btn-icon">💎</span><span class="btn-text">Upgrade to Premium ($1/mo)</span>';
                         }
                         if (filterSection) filterSection.style.display = 'none';
-                        return; // Keep radio selected but require upgrade on submit
+                        // Snap back to free selection to avoid a locked state
+                        if (freeRadio) freeRadio.checked = true;
+                        return;
                     }
                     if (submitBtn) {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = '<span class="btn-icon">💎</span><span class="btn-text">Subscribe to Premium ($1/mo)</span>';
                     }
                     if (filterSection) filterSection.style.display = 'block';
-                    if (premiumIdGroup) premiumIdGroup.style.display = this.premiumLocked ? 'none' : 'block';
                 } else {
                     if (submitBtn) {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = '<span class="btn-icon">📧</span><span class="btn-text">Subscribe to All Changes (Free)</span>';
                     }
                     if (filterSection) filterSection.style.display = 'none';
-                    if (premiumIdGroup) premiumIdGroup.style.display = 'none';
                 }
             });
         });
@@ -256,10 +261,18 @@ class SubscriptionManager {
         this.regionFilterEl = document.getElementById('regionFilter');
         this.selectAllBtnEl = document.getElementById('selectAllBtn');
         this.clearAllBtnEl = document.getElementById('clearAllBtn');
-        this.premiumIdEl = document.getElementById('premiumId');
         this.targetSearchEl = document.getElementById('targetSearch');
         this.targetSearchResultsEl = document.getElementById('targetSearchResults');
         this.selectedTargetsEl = document.getElementById('selectedTargets');
+        this.authModal = document.getElementById('authModal');
+        this.authEmailEl = document.getElementById('authEmail');
+        this.authPasswordEl = document.getElementById('authPassword');
+        this.authSubmitEl = document.getElementById('authSubmit');
+        this.authToggleEl = document.getElementById('authToggle');
+        this.authCloseEl = document.getElementById('authClose');
+        this.authMessageEl = document.getElementById('authMessage');
+        this.authPasswordConfirmEl = document.getElementById('authPasswordConfirm');
+        this.authPasswordConfirmGroupEl = document.getElementById('authPasswordConfirmGroup');
 
         // Plan status check on email blur/change
         const emailInput = document.getElementById('email');
@@ -270,6 +283,20 @@ class SubscriptionManager {
         }
         if (upgradeBtn) {
             upgradeBtn.addEventListener('click', () => this.startUpgrade());
+        }
+
+        // Auth triggers
+        if (this.authToggleEl) {
+            this.authToggleEl.addEventListener('click', () => {
+                const nextMode = this.authMode === 'login' ? 'signup' : 'login';
+                this.showAuthModal(nextMode);
+            });
+        }
+        if (this.authSubmitEl) {
+            this.authSubmitEl.addEventListener('click', () => this.handleAuthSubmit());
+        }
+        if (this.authCloseEl) {
+            this.authCloseEl.addEventListener('click', () => this.hideAuthModal());
         }
 
         // Service filter search (supports IP queries)
@@ -1087,14 +1114,12 @@ class SubscriptionManager {
     async handleSubmit() {
         const email = document.getElementById('email').value;
         const subscriptionType = document.querySelector('input[name="subscriptionType"]:checked').value;
-        const premiumId = (this.premiumIdEl || document.getElementById('premiumId'))?.value.trim() || '';
         
         const subscriptionData = {
             email: email,
             subscriptionType: subscriptionType,
             selectedServices: subscriptionType === 'filtered' ? Array.from(this.selectedServices) : [],
             selectedRegions: subscriptionType === 'filtered' ? Array.from(this.selectedRegions) : [],
-            user_id: subscriptionType === 'filtered' ? premiumId : undefined,
             ip_queries: subscriptionType === 'filtered' ? Array.from(this.selectedIpQueries) : []
         };
 
@@ -1102,16 +1127,17 @@ class SubscriptionManager {
         if (subscriptionType === 'filtered') {
             // Re-validate plan before submitting
             const premiumOK = this.devPremiumOverride ? true : await this.checkPlanStatus();
-            if (!premiumOK) {
+            if (!premiumOK || !this.isPremiumActive()) {
                 this.premiumLocked = true;
                 this.applyPlanStatus();
-                this.showError('Premium is required for targeted alerts. Use your premium email/ID or upgrade first.');
+                this.showAuthModal('login');
+                this.showError('Premium is required for targeted alerts. Please sign in or create an account.');
                 return;
             }
-            if (!premiumId) {
-                this.showError('Add a Premium ID or username so we can tie your filtered alerts.');
-                const premiumInput = this.premiumIdEl || document.getElementById('premiumId');
-                if (premiumInput) premiumInput.focus();
+            // Require session token for premium submissions
+            if (!this.token) {
+                this.showAuthModal('login');
+                this.showError('Sign in to send premium filters.');
                 return;
             }
             const hasTargets = (this.selectedServices.size + this.selectedRegions.size + this.selectedIpQueries.size) > 0;
@@ -1127,11 +1153,11 @@ class SubscriptionManager {
         submitBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Submitting...</span>';
 
         try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
             const response = await fetch(`${this.apiBaseUrl}/api/subscribe`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify(subscriptionData)
             });
 
@@ -1153,8 +1179,6 @@ class SubscriptionManager {
                     this.selectedIpQueries.clear();
                     this.updateSelectedCount();
                     document.getElementById('filterSection').style.display = 'none';
-                    const premiumInput = this.premiumIdEl || document.getElementById('premiumId');
-                    if (premiumInput) premiumInput.value = '';
                     this.renderSelectedTargets();
                 }, 3000);
             } else {
@@ -1187,10 +1211,17 @@ class SubscriptionManager {
             return true;
         }
         try {
-            const res = await fetch(`${this.apiBaseUrl}/api/plan_status?email=${encodeURIComponent(email)}`);
+            const headers = {};
+            if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+            const res = await fetch(`${this.apiBaseUrl}/api/plan_status?email=${encodeURIComponent(email)}`, { headers });
             const data = await res.json();
             if (res.ok && data.success) {
-                this.planStatus = data.plan || { plan: 'free', status: 'inactive' };
+                const planData = data.plan || {};
+                this.planStatus = {
+                    plan: planData.plan || 'free',
+                    status: planData.status || planData.plan_status || 'inactive',
+                    expires_at: planData.expires_at || planData.plan_expires_at || null
+                };
                 this.applyPlanStatus();
                 return this.isPremiumActive();
             }
@@ -1254,8 +1285,6 @@ class SubscriptionManager {
         const reg = this.regionFilterEl || document.getElementById('regionFilter');
         const selectAllBtn = this.selectAllBtnEl || document.getElementById('selectAllBtn');
         const clearAllBtn = this.clearAllBtnEl || document.getElementById('clearAllBtn');
-        const premiumId = document.getElementById('premiumId');
-        const premiumIdGroup = document.getElementById('premiumIdGroup');
         const filterSection = document.getElementById('filterSection');
         const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
         const targetSearch = this.targetSearchEl || document.getElementById('targetSearch');
@@ -1269,8 +1298,6 @@ class SubscriptionManager {
             reg.disabled = locked;
             reg.placeholder = locked ? 'Premium feature: region/IP targeting coming soon' : 'Search regions or IPs (e.g., East US, 13.107.6.10)';
         }
-        if (premiumId) premiumId.disabled = locked;
-        if (premiumIdGroup) premiumIdGroup.style.display = locked ? 'none' : 'block';
         if (selectAllBtn) selectAllBtn.disabled = locked;
         if (clearAllBtn) clearAllBtn.disabled = locked;
         if (targetSearch) targetSearch.disabled = locked;
@@ -1307,6 +1334,11 @@ class SubscriptionManager {
             return;
         }
         const email = emailInput.value.trim();
+        // If not authenticated yet, prompt account creation with the current email
+        if (!this.token) {
+            this.showAuthModal('signup');
+            return;
+        }
         try {
             const res = await fetch(`${this.apiBaseUrl}/api/upgrade`, {
                 method: 'POST',
@@ -1314,20 +1346,143 @@ class SubscriptionManager {
                 body: JSON.stringify({ email })
             });
             const data = await res.json();
-            if (res.ok && data.success && data.checkout_url) {
-                window.location.href = data.checkout_url;
-            } else {
-                if (data.waitlist_url) {
-                    // Offer to open waitlist link in a new tab
-                    window.open(data.waitlist_url, '_blank');
-                    this.showError('Premium upgrade is not live yet. We opened the waitlist email for you.');
-                } else {
-                    this.showError(data.error || 'Upgrade is not available yet.');
+            if (res.ok && data.success) {
+                if (data.checkout_url) {
+                    window.location.href = data.checkout_url;
+                    return;
                 }
+                this.showSuccess(data.message || 'Check your email for the upgrade link to set your password.');
+                return;
+            }
+            if (data.waitlist_url) {
+                window.open(data.waitlist_url, '_blank');
+                this.showError('Premium upgrade is not live yet. We opened the waitlist email for you.');
+            } else {
+                this.showError(data.error || 'Upgrade is not available yet.');
             }
         } catch (err) {
             console.error('Upgrade start failed', err);
             this.showError('Upgrade request failed. Please try again.');
+        }
+    }
+
+    showAuthModal(mode = 'login') {
+        if (!this.authModal) return;
+        this.authMode = mode;
+        const titleEl = document.getElementById('authModalTitle');
+        const subtitleEl = document.querySelector('#authModal .auth-subtitle');
+        const submitEl = this.authSubmitEl || document.getElementById('authSubmit');
+        const toggleEl = this.authToggleEl || document.getElementById('authToggle');
+        const confirmGroup = this.authPasswordConfirmGroupEl || document.getElementById('authPasswordConfirmGroup');
+
+        if (titleEl) titleEl.textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+        if (subtitleEl) subtitleEl.textContent = mode === 'signup'
+            ? 'Create your account to unlock premium filters.'
+            : 'Use your account to unlock premium filters.';
+        if (submitEl) submitEl.textContent = mode === 'signup' ? 'Create account' : 'Continue';
+        if (toggleEl) toggleEl.textContent = mode === 'signup'
+            ? 'Have an account? Sign in'
+            : 'Need an account? Create one';
+        if (confirmGroup) confirmGroup.style.display = mode === 'signup' ? 'block' : 'none';
+
+        const emailInput = document.getElementById('email');
+        if (emailInput && emailInput.value && this.authEmailEl) {
+            this.authEmailEl.value = emailInput.value.trim();
+        }
+        if (this.authPasswordEl) this.authPasswordEl.value = '';
+        if (this.authPasswordConfirmEl) this.authPasswordConfirmEl.value = '';
+        if (this.authMessageEl) this.authMessageEl.style.display = 'none';
+        this.authModal.style.display = 'flex';
+    }
+
+    hideAuthModal() {
+        if (this.authModal) this.authModal.style.display = 'none';
+        if (this.authMessageEl) this.authMessageEl.style.display = 'none';
+    }
+
+    setSession(payload) {
+        this.token = payload?.token || '';
+        this.currentUser = payload?.user || null;
+        const plan = payload?.plan || {};
+        this.planStatus = {
+            plan: plan.plan || 'free',
+            status: plan.status || plan.plan_status || 'inactive',
+            expires_at: plan.expires_at || plan.plan_expires_at || null
+        };
+        if (window.localStorage) {
+            if (this.token) {
+                window.localStorage.setItem('auth_token', this.token);
+            } else {
+                window.localStorage.removeItem('auth_token');
+            }
+        }
+        const emailInput = document.getElementById('email');
+        if (this.currentUser?.email && emailInput) {
+            emailInput.value = this.currentUser.email;
+        }
+        this.applyPlanStatus();
+    }
+
+    async handleAuthSubmit() {
+        if (!this.authEmailEl || !this.authPasswordEl) return;
+        const email = (this.authEmailEl.value || '').trim();
+        const password = this.authPasswordEl.value || '';
+        const confirm = this.authPasswordConfirmEl ? this.authPasswordConfirmEl.value || '' : '';
+        if (!email || !password) {
+            if (this.authMessageEl) {
+                this.authMessageEl.className = 'form-message error';
+                this.authMessageEl.textContent = 'Enter email and password.';
+                this.authMessageEl.style.display = 'block';
+            }
+            return;
+        }
+        if (this.authMode === 'signup' && password !== confirm) {
+            if (this.authMessageEl) {
+                this.authMessageEl.className = 'form-message error';
+                this.authMessageEl.textContent = 'Passwords do not match.';
+                this.authMessageEl.style.display = 'block';
+            }
+            return;
+        }
+
+        const endpoint = this.authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+        if (this.authSubmitEl) {
+            this.authSubmitEl.disabled = true;
+            this.authSubmitEl.textContent = this.authMode === 'signup' ? 'Creating...' : 'Signing in...';
+        }
+        if (this.authMessageEl) this.authMessageEl.style.display = 'none';
+
+        try {
+            const res = await fetch(`${this.apiBaseUrl}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                this.setSession({ token: data.token, plan: data.plan, user: { email } });
+                this.hideAuthModal();
+                // Refresh plan status when we have a new session
+                await this.checkPlanStatus();
+            } else {
+                if (this.authMessageEl) {
+                    this.authMessageEl.className = 'form-message error';
+                    this.authMessageEl.textContent = data.error || 'Authentication failed.';
+                    this.authMessageEl.style.display = 'block';
+                }
+            }
+        } catch (err) {
+            console.error('Auth submit failed', err);
+            if (this.authMessageEl) {
+                this.authMessageEl.className = 'form-message error';
+                this.authMessageEl.textContent = 'Request failed. Please try again.';
+                this.authMessageEl.style.display = 'block';
+            }
+        } finally {
+            if (this.authSubmitEl) {
+                this.authSubmitEl.disabled = false;
+                this.authSubmitEl.textContent = this.authMode === 'signup' ? 'Create account' : 'Continue';
+            }
         }
     }
 

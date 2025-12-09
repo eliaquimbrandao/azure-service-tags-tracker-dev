@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from pymongo.errors import DuplicateKeyError
 from .db_config import db_config
+from .user_manager import user_manager
 
 
 class SubscriptionManager:
@@ -37,7 +38,7 @@ class SubscriptionManager:
         """Hash email for privacy (optional, for analytics)"""
         return hashlib.sha256(email.lower().encode()).hexdigest()
     
-    def create_subscription(self, subscription_data: Dict) -> Dict:
+    def create_subscription(self, subscription_data: Dict, auth_user: Dict = None) -> Dict:
         """
         Create new subscription or reactivate existing unsubscribed one
         
@@ -70,6 +71,22 @@ class SubscriptionManager:
 
             # Enforce premium for filtered subscriptions
             if requested_type == 'filtered':
+                # Require authenticated user
+                if not auth_user:
+                    return {
+                        'success': False,
+                        'error': 'Login required for premium subscriptions',
+                        'code': 'AUTH_REQUIRED'
+                    }
+                # Ensure email matches authenticated user
+                auth_email = (auth_user.get('email') or '').lower().strip()
+                if auth_email and auth_email != email:
+                    return {
+                        'success': False,
+                        'error': 'Email must match logged-in user',
+                        'code': 'EMAIL_MISMATCH'
+                    }
+
                 plan = self.get_plan(email)
                 if not self._plan_allows_filtered(plan):
                     return {
@@ -77,6 +94,9 @@ class SubscriptionManager:
                         'error': 'Premium required for filtered subscriptions',
                         'code': 'PREMIUM_REQUIRED'
                     }
+                if not user_id:
+                    # default to auth user id if provided
+                    user_id = auth_user.get('sub') or auth_user.get('user_id')
                 if not user_id:
                     return {
                         'success': False,
@@ -190,6 +210,11 @@ class SubscriptionManager:
     def get_plan(self, email: str) -> Dict:
         """Return plan info for an email (defaults to free)."""
         email = email.lower().strip()
+        # Plan of record now stored on users collection
+        plan = user_manager.get_plan(email)
+        if plan:
+            return plan
+        # Fallback for legacy data
         doc = self.collection.find_one({'email': email})
         if not doc:
             return {'plan': 'free', 'plan_status': 'inactive', 'plan_expires_at': None}
