@@ -79,92 +79,43 @@
 
                     <!-- Subscription Type -->
                     <div class="form-group">
-                        <label class="label-text">Notification Type <span class="label-required">*</span></label>
+                        <label class="label-text">Choose your plan <span class="label-required">*</span></label>
                         <div class="radio-group">
                             <label class="radio-option">
                                 <input type="radio" name="subscriptionType" value="all" checked>
                                 <span class="radio-content">
-                                    <span class="radio-title">All Changes</span>
-                                    <span class="radio-description">Receive weekly summaries of all Azure Service Tag updates</span>
+                                    <span class="radio-title">All Changes (Free)</span>
+                                    <span class="radio-description">Weekly summaries of every Azure Service Tag/IP change.</span>
                                 </span>
                             </label>
-                            <label class="radio-option premium-disabled" title="Premium feature (coming soon)">
-                                <input type="radio" name="subscriptionType" value="filtered" disabled>
+                            <label class="radio-option" title="Premium $1/mo">
+                                <input type="radio" name="subscriptionType" value="filtered">
                                 <span class="radio-content">
-                                    <span class="radio-title">Specific Services <span class="badge-premium">Premium</span></span>
-                                    <span class="radio-description">Service/region filters will be available with paid plans</span>
+                                    <span class="radio-title">Targeted Alerts <span class="badge-premium">Premium</span></span>
+                                    <span class="radio-description">Pick services/regions/IPs. We’ll take you to upgrade for $1/mo.</span>
                                 </span>
                             </label>
                         </div>
-                        <p class="premium-note">Targeted alerts (by service, region, or IP) are part of upcoming paid plans. Join the waitlist: <a href="mailto:azure.tracker.waitlist@example.com">azure.tracker.waitlist@example.com</a>.</p>
+                        <p class="premium-note">Free plan includes "All Changes". Premium ($1/mo) unlocks service/region/IP filters for personalized details.</p>
                     </div>
 
                     <!-- Service Filter (Hidden by default) -->
                     <div id="filterSection" class="filter-section" style="display: none;">
-                        <div class="form-group premium-locked-block">
-                            <label for="serviceFilter" class="label-text">Search Services or IPs</label>
-                            <input type="text" id="serviceFilter" class="form-input" 
-                                placeholder="Search services or IPs (e.g., Storage, SQL, 13.107.6.10)">
-                            <div class="premium-overlay">Premium feature – targeted services/IPs coming soon</div>
+                        <div class="form-group premium-locked-block" id="premiumIdGroup" style="display:none;">
+                            <label for="premiumId" class="label-text">Premium ID / Username <span class="label-required">*</span></label>
+                            <input type="text" id="premiumId" class="form-input" placeholder="Choose an ID so we can tie your premium filters" autocomplete="off">
+                            <div class="premium-overlay">Premium feature</div>
                         </div>
-
-                        <div class="form-group">
-                            <label class="label-text">Select Services</label>
-                            <div class="service-selector">
-                                <div class="service-categories">
-                                    <button type="button" class="category-btn active" data-category="all">
-                                        All Services <span class="count" id="allCount">0</span>
-                                    </button>
-                                    <button type="button" class="category-btn" data-category="popular">
-                                        Popular <span class="count" id="popularCount">0</span>
-                                    </button>
-                                    <button type="button" class="category-btn" data-category="compute">
-                                        Compute <span class="count" id="computeCount">0</span>
-                                    </button>
-                                    <button type="button" class="category-btn" data-category="storage">
-                                        Storage <span class="count" id="storageCount">0</span>
-                                    </button>
-                                    <button type="button" class="category-btn" data-category="database">
-                                        Database <span class="count" id="databaseCount">0</span>
-                                    </button>
-                                    <button type="button" class="category-btn" data-category="networking">
-                                        Networking <span class="count" id="networkingCount">0</span>
-                                    </button>
-                                </div>
-                                
-                                <div class="service-actions">
-                                    <button type="button" class="action-btn" id="selectAllBtn">✓ Select All on Page</button>
-                                    <button type="button" class="action-btn" id="clearAllBtn">✗ Clear All</button>
-                                </div>
-                                
-                                <div class="service-list" id="serviceList">
-                                    <div class="loading-services">Loading services...</div>
-                                </div>
-                                
-                                <div class="selected-services" id="selectedServices">
-                                    <span class="selected-label">Selected: </span>
-                                    <span class="selected-count">0 services</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Region Filter -->
                         <div class="form-group premium-locked-block">
-                            <label for="regionFilter" class="label-text">Filter by Regions or IPs (Optional)</label>
-                            <input type="text" id="regionFilter" class="form-input" 
-                                placeholder="Search regions or IPs (e.g., East US, 13.107.6.10)"
+                            <label for="targetSearch" class="label-text">Search services, regions, or IPs (Premium)</label>
+                            <input type="text" id="targetSearch" class="form-input" 
+                                placeholder="Try 'Storage', 'East US', or '13.107.6.10'"
                                 autocomplete="off">
-                            <div class="premium-overlay">Premium feature – targeted regions/IPs coming soon</div>
-                            
-                            <!-- Selected Regions Tags -->
-                            <div class="selected-regions-tags" id="selectedRegionsTags" style="display: none;">
-                                <!-- Selected region tags will appear here -->
-                            </div>
-                            
-                            <!-- Region Search Results Dropdown -->
-                            <div class="region-dropdown" id="regionDropdown" style="display: none;">
-                                <!-- Search results will appear here -->
-                            </div>
+                            <div class="premium-overlay">Premium feature – targeted alerts</div>
+
+                            <div class="selected-regions-tags" id="selectedTargets" style="display: none;"></div>
+
+                            <div class="region-dropdown" id="targetSearchResults" style="display: none;"></div>
                         </div>
                     </div>
 

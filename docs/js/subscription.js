@@ -8,18 +8,54 @@ class SubscriptionManager {
         this.services = [];
         this.selectedServices = new Set();
         this.selectedRegions = new Set();
+        this.selectedIpQueries = new Set();
+        this.targetSearchResults = [];
         this.currentCategory = 'all';
         this.searchTerm = '';
         this.currentPage = 1;
         this.itemsPerPage = 50;
+        // Show CTA state while upgrading
+        const submitBtn = document.getElementById('subscribeBtn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Opening Premium Checkout...</span>';
+        }
         this.allRegions = this.getAllAzureRegions();
         this.premiumLocked = true; // Filtered targeting is premium-only for now
         this.planStatus = { plan: 'free', status: 'inactive', expires_at: null };
+        this.devPremiumOverride = this.getPremiumOverride();
         // API endpoint - update this when deploying to Vercel
         this.apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:3000'  // Local development
             : 'https://azure-service-tags-tracker-dev.vercel.app';  // Production Vercel API
+        // Apply dev override before initializing UI
+        if (this.devPremiumOverride) {
+            this.planStatus = { plan: 'premium', status: 'active', expires_at: null };
+            this.premiumLocked = false;
+        }
+
         this.init();
+    }
+
+    getPremiumOverride() {
+        const params = new URLSearchParams(window.location.search || '');
+        // Explicit off switch
+        if (params.get('premium') === '0' || params.get('devPremium') === '0') return false;
+        // Force on via query
+        if (params.get('premium') === '1' || params.get('devPremium') === '1') return true;
+        if (window.localStorage && window.localStorage.getItem('premium_override') === '1') return true;
+        return false;
+    }
+
+    setPremiumOverride(enabled) {
+        this.devPremiumOverride = enabled;
+        if (window.localStorage) {
+            if (enabled) {
+                window.localStorage.setItem('premium_override', '1');
+            } else {
+                window.localStorage.removeItem('premium_override');
+            }
+        }
     }
 
     getAllAzureRegions() {
@@ -87,6 +123,13 @@ class SubscriptionManager {
     async init() {
         await this.loadServices();
         this.setupEventListeners();
+        // Apply status to reflect dev override/premium unlock before first render
+        this.applyPlanStatus();
+        // If email prefilled, validate plan status on load
+        const emailInput = document.getElementById('email');
+        if (emailInput && emailInput.value) {
+            this.checkPlanStatus();
+        }
         this.renderServices();
     }
 
@@ -104,10 +147,25 @@ class SubscriptionManager {
             }));
 
             this.updateCategoryCounts();
+            this.buildIpPrefixCache();
         } catch (error) {
             console.error('Error loading services:', error);
             this.showError('Failed to load services. Please try again later.');
         }
+    }
+
+    buildIpPrefixCache() {
+        const seen = new Set();
+        this.ipPrefixes = [];
+        this.services.forEach(svc => {
+            const prefixes = this.normalizeServicePrefixes(svc);
+            prefixes.forEach(p => {
+                const lower = p.toLowerCase();
+                if (seen.has(lower)) return;
+                seen.add(lower);
+                this.ipPrefixes.push({ raw: p, lower });
+            });
+        });
     }
 
     categorizeService(serviceName) {
@@ -162,44 +220,46 @@ class SubscriptionManager {
         // Subscription type radio buttons
         const radioButtons = document.querySelectorAll('input[name="subscriptionType"]');
         const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
+        const premiumIdGroup = document.getElementById('premiumIdGroup');
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const filterSection = document.getElementById('filterSection');
+                const submitBtn = document.getElementById('subscribeBtn');
                 if (e.target.value === 'filtered') {
-                    // Premium gating: keep hidden even if user tries to toggle via devtools
-                    filterSection.style.display = 'none';
-                    this.showError('Filtered alerts by service/region/IP are a premium feature coming soon.');
-                    // Revert to all changes
-                    const allRadio = document.querySelector('input[name="subscriptionType"][value="all"]');
-                    if (allRadio) allRadio.checked = true;
+                    if (this.premiumLocked) {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<span class="btn-icon">💎</span><span class="btn-text">Upgrade to Premium ($1/mo)</span>';
+                        }
+                        if (filterSection) filterSection.style.display = 'none';
+                        return; // Keep radio selected but require upgrade on submit
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<span class="btn-icon">💎</span><span class="btn-text">Subscribe to Premium ($1/mo)</span>';
+                    }
+                    if (filterSection) filterSection.style.display = 'block';
+                    if (premiumIdGroup) premiumIdGroup.style.display = this.premiumLocked ? 'none' : 'block';
                 } else {
-                    filterSection.style.display = 'none';
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<span class="btn-icon">📧</span><span class="btn-text">Subscribe to All Changes (Free)</span>';
+                    }
+                    if (filterSection) filterSection.style.display = 'none';
+                    if (premiumIdGroup) premiumIdGroup.style.display = 'none';
                 }
             });
         });
 
-        // Ensure filtered option stays disabled (defense in depth)
-        if (filteredRadio) {
-            filteredRadio.disabled = true;
-        }
-
-        // Premium lock: disable service and region controls
-        if (this.premiumLocked) {
-            const serviceFilter = document.getElementById('serviceFilter');
-            const regionFilter = document.getElementById('regionFilter');
-            const selectAllBtn = document.getElementById('selectAllBtn');
-            const clearAllBtn = document.getElementById('clearAllBtn');
-            if (serviceFilter) {
-                serviceFilter.disabled = true;
-                serviceFilter.placeholder = 'Premium feature: service/IP targeting coming soon';
-            }
-            if (regionFilter) {
-                regionFilter.disabled = true;
-                regionFilter.placeholder = 'Premium feature: region/IP targeting coming soon';
-            }
-            if (selectAllBtn) selectAllBtn.disabled = true;
-            if (clearAllBtn) clearAllBtn.disabled = true;
-        }
+        // Cache filters/buttons for later toggle updates
+        this.serviceFilterEl = document.getElementById('serviceFilter');
+        this.regionFilterEl = document.getElementById('regionFilter');
+        this.selectAllBtnEl = document.getElementById('selectAllBtn');
+        this.clearAllBtnEl = document.getElementById('clearAllBtn');
+        this.premiumIdEl = document.getElementById('premiumId');
+        this.targetSearchEl = document.getElementById('targetSearch');
+        this.targetSearchResultsEl = document.getElementById('targetSearchResults');
+        this.selectedTargetsEl = document.getElementById('selectedTargets');
 
         // Plan status check on email blur/change
         const emailInput = document.getElementById('email');
@@ -212,10 +272,9 @@ class SubscriptionManager {
             upgradeBtn.addEventListener('click', () => this.startUpgrade());
         }
 
-        // Service filter search
-        const serviceFilter = document.getElementById('serviceFilter');
-        if (serviceFilter) {
-            serviceFilter.addEventListener('input', (e) => {
+        // Service filter search (supports IP queries)
+        if (this.serviceFilterEl) {
+            this.serviceFilterEl.addEventListener('input', (e) => {
                 this.searchTerm = e.target.value.toLowerCase();
                 this.currentPage = 1;
                 this.renderServices();
@@ -286,7 +345,7 @@ class SubscriptionManager {
         });
 
         // Region search functionality
-        const regionFilter = document.getElementById('regionFilter');
+        const regionFilter = this.regionFilterEl;
         const regionDropdown = document.getElementById('regionDropdown');
         
         if (regionFilter && regionDropdown) {
@@ -309,8 +368,8 @@ class SubscriptionManager {
         }
 
         // Select All / Clear All buttons
-        const selectAllBtn = document.getElementById('selectAllBtn');
-        const clearAllBtn = document.getElementById('clearAllBtn');
+        const selectAllBtn = this.selectAllBtnEl;
+        const clearAllBtn = this.clearAllBtnEl;
         
         if (selectAllBtn) {
             selectAllBtn.addEventListener('click', () => {
@@ -321,6 +380,31 @@ class SubscriptionManager {
         if (clearAllBtn) {
             clearAllBtn.addEventListener('click', () => {
                 this.clearAllSelections();
+            });
+        }
+
+        // Unified target search (service/region/IP)
+        if (this.targetSearchEl) {
+            let targetSearchTimeout;
+            this.targetSearchEl.addEventListener('input', (e) => {
+                const term = e.target.value;
+                clearTimeout(targetSearchTimeout);
+                targetSearchTimeout = setTimeout(() => this.handleTargetSearch(term), 200);
+            });
+
+            this.targetSearchEl.addEventListener('focus', (e) => {
+                if (e.target.value) {
+                    this.handleTargetSearch(e.target.value);
+                }
+            });
+        }
+
+        // Hide dropdown when clicking outside
+        if (this.targetSearchResultsEl) {
+            document.addEventListener('click', (e) => {
+                if (!this.targetSearchResultsEl.contains(e.target) && !this.targetSearchEl?.contains(e.target)) {
+                    this.targetSearchResultsEl.style.display = 'none';
+                }
             });
         }
 
@@ -467,7 +551,8 @@ class SubscriptionManager {
     updateSelectedCount() {
         const countElement = document.querySelector('.selected-count');
         if (countElement) {
-            countElement.textContent = `${this.selectedServices.size} service${this.selectedServices.size !== 1 ? 's' : ''}`;
+            const total = this.selectedServices.size + this.selectedRegions.size + this.selectedIpQueries.size;
+            countElement.textContent = `${total} target${total !== 1 ? 's' : ''}`;
         }
     }
 
@@ -486,12 +571,14 @@ class SubscriptionManager {
     clearAllSelections() {
         // Clear all selected services
         this.selectedServices.clear();
+        this.selectedIpQueries.clear();
         // Uncheck all visible checkboxes
         const checkboxes = document.querySelectorAll('.service-item input[type="checkbox"]');
         checkboxes.forEach(checkbox => {
             checkbox.checked = false;
         });
         this.updateSelectedCount();
+        this.renderSelectedTargets();
     }
 
     updateRegionDropdown(searchTerm) {
@@ -572,7 +659,7 @@ class SubscriptionManager {
 
     isIpQuery(term) {
         const t = term.trim();
-        return this.isIPv4(t) || this.isIPv4Cidr(t);
+        return this.isIPv4(t) || this.isIPv4Cidr(t) || this.isIPv6(t) || this.isIPv6Cidr(t);
     }
 
     isIPv4(ip) {
@@ -587,6 +674,18 @@ class SubscriptionManager {
         const [ip, prefix] = parts;
         const prefixNum = Number(prefix);
         return this.isIPv4(ip) && Number.isInteger(prefixNum) && prefixNum >= 0 && prefixNum <= 32;
+    }
+
+    isIPv6(ip) {
+        return Boolean(this.parseIPv6(ip));
+    }
+
+    isIPv6Cidr(cidr) {
+        const parts = cidr.split('/');
+        if (parts.length !== 2) return false;
+        const [ip, prefix] = parts;
+        const prefixNum = Number(prefix);
+        return this.isIPv6(ip) && Number.isInteger(prefixNum) && prefixNum >= 0 && prefixNum <= 128;
     }
 
     ipToInt(ip) {
@@ -604,14 +703,59 @@ class SubscriptionManager {
         return (ipInt & mask) === (networkInt & mask);
     }
 
+    parseIPv6(ip) {
+        if (!ip || typeof ip !== 'string') return null;
+        const lower = ip.toLowerCase();
+        if ((lower.match(/::/g) || []).length > 1) return null;
+        const [head, tail] = lower.split('::');
+        const headSegs = head ? head.split(':').filter(Boolean) : [];
+        const tailSegs = tail ? tail.split(':').filter(Boolean) : [];
+
+        // Validate segments are hex and <= 4 chars
+        const validSeg = (seg) => seg.length > 0 && seg.length <= 4 && /^[0-9a-f]{1,4}$/i.test(seg);
+        if (!headSegs.every(validSeg)) return null;
+        if (!tailSegs.every(validSeg)) return null;
+
+        const total = headSegs.length + tailSegs.length;
+        if (total > 8) return null;
+        const fill = 8 - total;
+        const fullSegs = [...headSegs, ...Array(fill).fill('0'), ...tailSegs].map(seg => parseInt(seg, 16));
+        if (fullSegs.length !== 8) return null;
+
+        return fullSegs;
+    }
+
+    ipv6ToBigInt(segs) {
+        return segs.reduce((acc, seg) => (acc << 16n) + BigInt(seg), 0n);
+    }
+
+    ipInIPv6Cidr(ip, cidr) {
+        if (!this.isIPv6(ip)) return false;
+        if (!this.isIPv6Cidr(cidr)) return false;
+        const [network, prefix] = cidr.split('/');
+        const prefixBits = BigInt(Number(prefix));
+        const ipSegs = this.parseIPv6(ip);
+        const netSegs = this.parseIPv6(network);
+        if (!ipSegs || !netSegs) return false;
+        const ipBig = this.ipv6ToBigInt(ipSegs);
+        const netBig = this.ipv6ToBigInt(netSegs);
+        if (prefixBits === 0n) return true;
+        const mask = (BigInt(-1) << (128n - prefixBits)) & ((1n << 128n) - 1n);
+        return (ipBig & mask) === (netBig & mask);
+    }
+
     serviceMatchesIp(service, searchTerm) {
-        const prefixes = (service.properties && service.properties.addressPrefixes) || [];
+        const prefixes = this.normalizeServicePrefixes(service);
         const term = searchTerm.trim();
         if (!prefixes.length) return false;
 
         // Exact CIDR match
         if (this.isIPv4Cidr(term)) {
-            return prefixes.some(p => p === term);
+            return prefixes.some(p => this.isIPv4Cidr(p) ? p === term : false);
+        }
+        if (this.isIPv6Cidr(term)) {
+            const lowered = term.toLowerCase();
+            return prefixes.some(p => this.isIPv6Cidr(p) ? p.toLowerCase() === lowered : false);
         }
 
         // IP match inside any CIDR
@@ -622,8 +766,22 @@ class SubscriptionManager {
                 return false;
             });
         }
+        if (this.isIPv6(term)) {
+            const loweredTerm = term.toLowerCase();
+            return prefixes.some(p => {
+                if (this.isIPv6Cidr(p)) return this.ipInIPv6Cidr(loweredTerm, p.toLowerCase());
+                if (this.isIPv6(p)) return p.toLowerCase() === loweredTerm;
+                return false;
+            });
+        }
 
         return false;
+    }
+
+    normalizeServicePrefixes(service) {
+        if (!service || !service.properties) return [];
+        const prefixes = service.properties.addressPrefixes || [];
+        return prefixes.map(p => (typeof p === 'string' ? p.trim() : '')).filter(Boolean);
     }
 
     getRegionsForIp(searchTerm) {
@@ -632,10 +790,10 @@ class SubscriptionManager {
         if (!term) return regions;
 
         this.services.forEach(service => {
-            const regionId = (service.properties && service.properties.region) || '';
+            const regionId = ((service.properties && service.properties.region) || '').toLowerCase();
             if (!regionId) return;
             if (this.serviceMatchesIp(service, term)) {
-                regions.add(regionId.toLowerCase());
+                regions.add(regionId);
             }
         });
         return regions;
@@ -686,21 +844,281 @@ class SubscriptionManager {
         });
     }
 
+    handleTargetSearch(term) {
+        if (!this.targetSearchResultsEl) return;
+        if (this.premiumLocked) {
+            this.targetSearchResultsEl.innerHTML = '<div class="region-dropdown-item no-results">Premium required to search targets.</div>';
+            this.targetSearchResultsEl.style.display = 'block';
+            return;
+        }
+
+        const query = (term || '').trim();
+        if (!query) {
+            this.targetSearchResultsEl.style.display = 'none';
+            return;
+        }
+
+        const results = this.getTargetResults(query);
+        this.renderTargetSearchResults(results, query);
+    }
+
+    getTargetResults(query) {
+        const q = query.trim();
+        const qLower = q.toLowerCase();
+        const results = [];
+        if (!qLower) return results;
+
+        const isIpLike = this.isIpQuery(qLower) || /\d+\.\d+/.test(qLower);
+
+        const addedServiceIds = new Set();
+        const regionResults = [];
+        const serviceResults = [];
+        const ipResults = [];
+
+        // IP-driven search first to surface exact matches
+        if (isIpLike) {
+            const matchedServices = this.services.filter(s => this.serviceMatchesIp(s, qLower));
+            const serviceIds = matchedServices.map(s => s.id);
+            results.push({
+                type: 'ip',
+                value: q,
+                label: q,
+                meta: matchedServices.length ? `Matches ${matchedServices.length} service${matchedServices.length !== 1 ? 's' : ''}` : 'IP query (no matching services yet)',
+                services: serviceIds
+            });
+
+            matchedServices.slice(0, 8).forEach(s => {
+                addedServiceIds.add(s.id);
+                serviceResults.push({
+                    type: 'service',
+                    value: s.id,
+                    label: s.name,
+                    meta: s.properties?.region ? this.getRegionDisplayName(s.properties.region) : 'Service tag'
+                });
+            });
+
+            // If the query isn't a full IP/CIDR, suggest prefix matches from known ranges
+            const isFullIp = this.isIPv4(qLower) || this.isIPv4Cidr(qLower) || this.isIPv6(qLower) || this.isIPv6Cidr(qLower);
+            if (!isFullIp && this.ipPrefixes && this.ipPrefixes.length) {
+                const prefixHits = this.ipPrefixes
+                    .filter(p => p.lower.includes(qLower))
+                    .slice(0, 8);
+                prefixHits.forEach(hit => {
+                    ipResults.push({
+                        type: 'ip',
+                        value: hit.raw,
+                        label: hit.raw,
+                        meta: 'Prefix match'
+                    });
+                });
+            }
+        }
+
+        // Region search (prioritize showing region before its services)
+        const regionMatches = this.allRegions
+            .filter(r => r.name.toLowerCase().includes(qLower) || r.id.toLowerCase().includes(qLower))
+            .slice(0, 6);
+
+        regionMatches.forEach(r => {
+            regionResults.push({
+                type: 'region',
+                value: r.id,
+                label: r.name,
+                meta: 'Region'
+            });
+
+            // Add services that live in this region (limit to avoid overflow)
+            const regionServices = this.services
+                .filter(s => (s.properties?.region || '').toLowerCase() === r.id.toLowerCase())
+                .slice(0, 5);
+            regionServices.forEach(s => {
+                if (addedServiceIds.has(s.id)) return;
+                addedServiceIds.add(s.id);
+                serviceResults.push({
+                    type: 'service',
+                    value: s.id,
+                    label: s.name,
+                    meta: this.getRegionDisplayName(r.id)
+                });
+            });
+        });
+
+        // Service name search (after region priority)
+        const serviceMatches = this.services
+            .filter(s => s.name.toLowerCase().includes(qLower) || s.id.toLowerCase().includes(qLower))
+            .slice(0, 8);
+        serviceMatches.forEach(s => {
+            if (addedServiceIds.has(s.id)) return;
+            addedServiceIds.add(s.id);
+            serviceResults.push({
+                type: 'service',
+                value: s.id,
+                label: s.name,
+                meta: s.properties?.region ? this.getRegionDisplayName(s.properties.region) : 'Service tag'
+            });
+        });
+
+        // Order: IP result (if any), then regions, then services
+        // For all searches, append any extra IP suggestions, then regions, then services (IP query entry stays at the top)
+        results.push(...ipResults);
+        results.push(...regionResults);
+        results.push(...serviceResults);
+
+        return results;
+    }
+
+    renderTargetSearchResults(results, query) {
+        if (!this.targetSearchResultsEl) return;
+
+        if (!results.length) {
+            this.targetSearchResultsEl.innerHTML = `<div class="region-dropdown-item no-results">No matches for "${this.escapeHtml(query)}"</div>`;
+            this.targetSearchResultsEl.style.display = 'block';
+            return;
+        }
+
+        const itemsHtml = results.map((item, idx) => {
+            const meta = item.meta ? `<span class="region-id">${this.escapeHtml(item.meta)}</span>` : '';
+            return `
+                <div class="region-dropdown-item" data-idx="${idx}" data-type="${item.type}" data-value="${this.escapeHtml(item.value)}">
+                    <span class="region-name">${this.escapeHtml(item.label)}</span>
+                    ${meta}
+                </div>
+            `;
+        }).join('');
+
+        this.targetSearchResults = results;
+        this.targetSearchResultsEl.innerHTML = itemsHtml;
+        this.targetSearchResultsEl.style.display = 'block';
+
+        this.targetSearchResultsEl.querySelectorAll('.region-dropdown-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const idx = Number(el.getAttribute('data-idx'));
+                const picked = this.targetSearchResults[idx];
+                if (picked) {
+                    this.addTargetSelection(picked);
+                }
+            });
+        });
+    }
+
+    addTargetSelection(item) {
+        if (!item) return;
+        if (item.type === 'service') {
+            this.selectedServices.add(item.value);
+        } else if (item.type === 'region') {
+            this.selectedRegions.add(item.value);
+        } else if (item.type === 'ip') {
+            // IP selections are tracked as standalone queries; do not auto-add services
+            this.selectedIpQueries.add(item.value);
+        }
+
+        if (this.targetSearchEl) {
+            this.targetSearchEl.value = '';
+        }
+        if (this.targetSearchResultsEl) {
+            this.targetSearchResultsEl.style.display = 'none';
+        }
+
+        this.renderSelectedTargets();
+        this.updateSelectedCount();
+    }
+
+    removeTargetSelection(type, value) {
+        if (type === 'service') {
+            this.selectedServices.delete(value);
+        } else if (type === 'region') {
+            this.selectedRegions.delete(value);
+        } else if (type === 'ip') {
+            this.selectedIpQueries.delete(value);
+        }
+        this.renderSelectedTargets();
+        this.updateSelectedCount();
+    }
+
+    renderSelectedTargets() {
+        if (!this.selectedTargetsEl) return;
+        const items = [];
+
+        this.selectedIpQueries.forEach(ip => {
+            items.push({ type: 'ip', value: ip, label: ip });
+        });
+
+        this.selectedRegions.forEach(regionId => {
+            items.push({ type: 'region', value: regionId, label: this.getRegionDisplayName(regionId) });
+        });
+
+        this.selectedServices.forEach(serviceId => {
+            items.push({ type: 'service', value: serviceId, label: this.getServiceName(serviceId) });
+        });
+
+        if (!items.length) {
+            this.selectedTargetsEl.style.display = 'none';
+            this.selectedTargetsEl.innerHTML = '';
+            return;
+        }
+
+        this.selectedTargetsEl.style.display = 'flex';
+        this.selectedTargetsEl.innerHTML = items.map(item => `
+            <div class="region-tag" data-type="${item.type}" data-value="${this.escapeHtml(item.value)}">
+                <span class="region-tag-name">${this.escapeHtml(item.label)}</span>
+                <button type="button" class="region-tag-remove" data-type="${item.type}" data-value="${this.escapeHtml(item.value)}">×</button>
+            </div>
+        `).join('');
+
+        this.selectedTargetsEl.querySelectorAll('.region-tag-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.removeTargetSelection(btn.dataset.type, btn.dataset.value);
+            });
+        });
+    }
+
+    getServiceName(serviceId) {
+        const svc = this.services.find(s => s.id === serviceId || s.name === serviceId);
+        return svc ? svc.name : serviceId;
+    }
+
+    getRegionDisplayName(regionId) {
+        if (!regionId) return 'Global';
+        const region = this.allRegions.find(r => r.id.toLowerCase() === regionId.toLowerCase());
+        if (region) return region.name;
+        return regionId;
+    }
+
     async handleSubmit() {
         const email = document.getElementById('email').value;
         const subscriptionType = document.querySelector('input[name="subscriptionType"]:checked').value;
+        const premiumId = (this.premiumIdEl || document.getElementById('premiumId'))?.value.trim() || '';
         
         const subscriptionData = {
             email: email,
             subscriptionType: subscriptionType,
             selectedServices: subscriptionType === 'filtered' ? Array.from(this.selectedServices) : [],
-            selectedRegions: subscriptionType === 'filtered' ? Array.from(this.selectedRegions) : []
+            selectedRegions: subscriptionType === 'filtered' ? Array.from(this.selectedRegions) : [],
+            user_id: subscriptionType === 'filtered' ? premiumId : undefined,
+            ip_queries: subscriptionType === 'filtered' ? Array.from(this.selectedIpQueries) : []
         };
 
-        // Validation
+        // Validation and premium gating
         if (subscriptionType === 'filtered') {
-            this.showError('Filtered alerts are a premium feature. Please select "All Changes" to subscribe.');
-            return;
+            // Re-validate plan before submitting
+            const premiumOK = await this.checkPlanStatus();
+            if (!premiumOK) {
+                this.premiumLocked = true;
+                this.applyPlanStatus();
+                this.showError('Premium is required for targeted alerts. Use your premium email/ID or upgrade first.');
+                return;
+            }
+            if (!premiumId) {
+                this.showError('Add a Premium ID or username so we can tie your filtered alerts.');
+                const premiumInput = this.premiumIdEl || document.getElementById('premiumId');
+                if (premiumInput) premiumInput.focus();
+                return;
+            }
+            const hasTargets = (this.selectedServices.size + this.selectedRegions.size + this.selectedIpQueries.size) > 0;
+            if (!hasTargets) {
+                this.showError('Select at least one target (service, region, or IP) for premium alerts.');
+                return;
+            }
         }
 
         // Disable submit button
@@ -732,8 +1150,12 @@ class SubscriptionManager {
                     document.getElementById('subscriptionForm').reset();
                     this.selectedServices.clear();
                     this.selectedRegions.clear();
+                    this.selectedIpQueries.clear();
                     this.updateSelectedCount();
                     document.getElementById('filterSection').style.display = 'none';
+                    const premiumInput = this.premiumIdEl || document.getElementById('premiumId');
+                    if (premiumInput) premiumInput.value = '';
+                    this.renderSelectedTargets();
                 }, 3000);
             } else {
                 // Handle API errors
@@ -764,10 +1186,15 @@ class SubscriptionManager {
             if (res.ok && data.success) {
                 this.planStatus = data.plan || { plan: 'free', status: 'inactive' };
                 this.applyPlanStatus();
+                return this.isPremiumActive();
             }
         } catch (err) {
             console.error('Plan status check failed', err);
         }
+        // Default to locked if status cannot be verified
+        this.planStatus = { plan: 'free', status: 'inactive', expires_at: null };
+        this.applyPlanStatus();
+        return false;
     }
 
     applyPlanStatus() {
@@ -780,41 +1207,89 @@ class SubscriptionManager {
         const selectAllBtn = document.getElementById('selectAllBtn');
         const clearAllBtn = document.getElementById('clearAllBtn');
 
-        const isPremium = this.planStatus.plan === 'premium' && this.planStatus.status === 'active';
+        // Enable upgrade button for non-premium users
+        if (upgradeBtn) {
+            upgradeBtn.disabled = false;
+        }
+
+        const isPremium = this.devPremiumOverride || (this.planStatus.plan === 'premium' && this.planStatus.status === 'active');
         if (statusWrap && statusText) {
             statusWrap.style.display = 'flex';
             if (isPremium) {
                 statusText.textContent = 'Premium active — targeted filters unlocked.';
             } else {
-                statusText.textContent = 'Free plan — upgrade to unlock targeted filters ($1/mo launch price).';
+                statusText.textContent = 'Free plan — choose Premium to upgrade and unlock targeted filters ($1/mo).';
             }
         }
 
         this.premiumLocked = !isPremium;
-        if (filteredRadio) {
-            filteredRadio.disabled = this.premiumLocked;
-            if (!this.premiumLocked) {
-                filteredRadio.parentElement.classList.remove('premium-disabled');
+        if (filteredRadio && !this.premiumLocked) {
+            filteredRadio.parentElement.classList.remove('premium-disabled');
+        }
+
+        // Reset submit button state based on plan
+        const submitBtn = document.getElementById('subscribeBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span class="btn-icon">📧</span><span class="btn-text">Subscribe to All Changes (Free)</span>';
+        }
+
+        // Sync UI controls and overlays with current lock state
+        this.updatePremiumLockUI();
+    }
+
+    isPremiumActive() {
+        return this.devPremiumOverride || (this.planStatus.plan === 'premium' && this.planStatus.status === 'active');
+    }
+
+    updatePremiumLockUI() {
+        const locked = this.premiumLocked;
+        const svc = this.serviceFilterEl || document.getElementById('serviceFilter');
+        const reg = this.regionFilterEl || document.getElementById('regionFilter');
+        const selectAllBtn = this.selectAllBtnEl || document.getElementById('selectAllBtn');
+        const clearAllBtn = this.clearAllBtnEl || document.getElementById('clearAllBtn');
+        const premiumId = document.getElementById('premiumId');
+        const premiumIdGroup = document.getElementById('premiumIdGroup');
+        const filterSection = document.getElementById('filterSection');
+        const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
+        const targetSearch = this.targetSearchEl || document.getElementById('targetSearch');
+        const targetResults = this.targetSearchResultsEl || document.getElementById('targetSearchResults');
+
+        if (svc) {
+            svc.disabled = locked;
+            svc.placeholder = locked ? 'Premium feature: service/IP targeting coming soon' : 'Search services or IPs (e.g., Storage, 13.107.6.10)';
+        }
+        if (reg) {
+            reg.disabled = locked;
+            reg.placeholder = locked ? 'Premium feature: region/IP targeting coming soon' : 'Search regions or IPs (e.g., East US, 13.107.6.10)';
+        }
+        if (premiumId) premiumId.disabled = locked;
+        if (premiumIdGroup) premiumIdGroup.style.display = locked ? 'none' : 'block';
+        if (selectAllBtn) selectAllBtn.disabled = locked;
+        if (clearAllBtn) clearAllBtn.disabled = locked;
+        if (targetSearch) targetSearch.disabled = locked;
+        if (targetResults && locked) targetResults.style.display = 'none';
+
+        if (filterSection) {
+            const filteredSelected = filteredRadio && filteredRadio.checked;
+            filterSection.style.display = locked ? 'none' : (filteredSelected ? 'block' : 'none');
+        }
+
+        // When locked, force radio back to free
+        if (locked && filteredRadio && filteredRadio.checked) {
+            const freeRadio = document.querySelector('input[name="subscriptionType"][value="all"]');
+            if (freeRadio) {
+                freeRadio.checked = true;
             }
         }
 
-        // Toggle controls
-        const toggle = (el, disabled, placeholderText) => {
-            if (!el) return;
-            el.disabled = disabled;
-            if (placeholderText) el.placeholder = placeholderText;
-        };
+        document.querySelectorAll('.premium-overlay').forEach(el => {
+            el.style.display = locked ? 'flex' : 'none';
+        });
 
-        if (this.premiumLocked) {
-            toggle(serviceFilter, true, 'Premium feature: service/IP targeting coming soon');
-            toggle(regionFilter, true, 'Premium feature: region/IP targeting coming soon');
-            if (selectAllBtn) selectAllBtn.disabled = true;
-            if (clearAllBtn) clearAllBtn.disabled = true;
-        } else {
-            toggle(serviceFilter, false);
-            toggle(regionFilter, false);
-            if (selectAllBtn) selectAllBtn.disabled = false;
-            if (clearAllBtn) clearAllBtn.disabled = false;
+        // Rerender services to show/hide list accordingly
+        if (this.services && this.services.length) {
+            this.renderServices();
         }
     }
 
@@ -822,6 +1297,7 @@ class SubscriptionManager {
         const emailInput = document.getElementById('email');
         if (!emailInput || !emailInput.value) {
             this.showError('Enter your email to start the upgrade.');
+            if (emailInput) emailInput.focus();
             return;
         }
         const email = emailInput.value.trim();
@@ -835,7 +1311,13 @@ class SubscriptionManager {
             if (res.ok && data.success && data.checkout_url) {
                 window.location.href = data.checkout_url;
             } else {
-                this.showError(data.error || 'Upgrade is not available yet.');
+                if (data.waitlist_url) {
+                    // Offer to open waitlist link in a new tab
+                    window.open(data.waitlist_url, '_blank');
+                    this.showError('Premium upgrade is not live yet. We opened the waitlist email for you.');
+                } else {
+                    this.showError(data.error || 'Upgrade is not available yet.');
+                }
             }
         } catch (err) {
             console.error('Upgrade start failed', err);

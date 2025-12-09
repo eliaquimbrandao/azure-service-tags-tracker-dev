@@ -58,6 +58,8 @@ class SubscriptionManager:
             # Determine requested type
             requested_type = subscription_data.get('subscriptionType', 'all')
 
+            user_id = (subscription_data.get('user_id') or '').strip()
+
             # Check if email already has an active subscription
             if self.is_email_subscribed(email):
                 return {
@@ -74,6 +76,12 @@ class SubscriptionManager:
                         'success': False,
                         'error': 'Premium required for filtered subscriptions',
                         'code': 'PREMIUM_REQUIRED'
+                    }
+                if not user_id:
+                    return {
+                        'success': False,
+                        'error': 'User ID is required for premium subscriptions',
+                        'code': 'MISSING_USER_ID'
                     }
             
             # Check if there's an unsubscribed record to reactivate
@@ -92,6 +100,8 @@ class SubscriptionManager:
                             'subscriptionType': requested_type,
                             'selectedServices': subscription_data.get('selectedServices', []),
                             'selectedRegions': subscription_data.get('selectedRegions', []),
+                            'ip_queries': subscription_data.get('ip_queries', []),
+                            'user_id': user_id or existing.get('user_id'),
                             'updated_at': datetime.utcnow(),
                             'resubscribed_at': datetime.utcnow()
                         },
@@ -122,6 +132,8 @@ class SubscriptionManager:
                 'subscriptionType': requested_type,
                 'selectedServices': subscription_data.get('selectedServices', []),
                 'selectedRegions': subscription_data.get('selectedRegions', []),
+                'ip_queries': subscription_data.get('ip_queries', []),
+                'user_id': subscription_data.get('user_id'),
                 'timestamp': datetime.utcnow().isoformat(),
                 'status': 'active',
                 'unsubscribe_token': self.generate_unsubscribe_token(),
