@@ -1101,7 +1101,7 @@ class SubscriptionManager {
         // Validation and premium gating
         if (subscriptionType === 'filtered') {
             // Re-validate plan before submitting
-            const premiumOK = await this.checkPlanStatus();
+            const premiumOK = this.devPremiumOverride ? true : await this.checkPlanStatus();
             if (!premiumOK) {
                 this.premiumLocked = true;
                 this.applyPlanStatus();
@@ -1180,6 +1180,12 @@ class SubscriptionManager {
         if (!emailInput || !emailInput.value) return;
         const email = emailInput.value.trim();
         if (!email) return;
+        // Dev/QA override: skip remote check
+        if (this.devPremiumOverride) {
+            this.planStatus = { plan: 'premium', status: 'active', expires_at: null };
+            this.applyPlanStatus();
+            return true;
+        }
         try {
             const res = await fetch(`${this.apiBaseUrl}/api/plan_status?email=${encodeURIComponent(email)}`);
             const data = await res.json();

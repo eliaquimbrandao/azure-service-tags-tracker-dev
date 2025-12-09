@@ -12,6 +12,14 @@
     {
       "src": "api/request_unsubscribe.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "api/plan_status.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/upgrade.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -26,6 +34,14 @@
     {
       "src": "/api/request-unsubscribe",
       "dest": "/api/request_unsubscribe.py"
+    },
+    {
+      "src": "/api/plan-status",
+      "dest": "/api/plan_status.py"
+    },
+    {
+      "src": "/api/upgrade",
+      "dest": "/api/upgrade.py"
     }
   ]
 }
