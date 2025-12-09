@@ -12,13 +12,26 @@ from api import db_config, SubscriptionManager, EmailService
 def load_changes():
     """Load latest changes from JSON file"""
     changes_file = Path(__file__).parent.parent / 'docs' / 'data' / 'changes' / 'latest-changes.json'
+    summary_file = Path(__file__).parent.parent / 'docs' / 'data' / 'summary.json'
     
     if not changes_file.exists():
         print("❌ No changes file found")
         return None
     
     with open(changes_file, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        changes = json.load(f)
+
+    # Attach summary regional breakdown so the email can match dashboard counts
+    if summary_file.exists():
+        try:
+            with open(summary_file, 'r', encoding='utf-8') as sf:
+                summary = json.load(sf)
+            if isinstance(summary, dict) and 'regional_changes' in summary:
+                changes['regional_changes'] = summary['regional_changes']
+        except Exception:
+            pass
+
+    return changes
 
 
 def send_notifications():
@@ -48,37 +61,44 @@ def send_notifications():
         
         # Get all active subscribers who want all changes
         all_subscribers = sub_manager.get_active_subscriptions({'subscriptionType': 'all'})
-        
+
         # Get filtered subscribers (need to check if their services changed)
         filtered_subscribers = sub_manager.get_active_subscriptions({'subscriptionType': 'filtered'})
-        
-        # Collect recipients
-        all_recipients = [sub['email'] for sub in all_subscribers]
-        filtered_recipients = []
-        
-        # Check filtered subscribers
+
+        # Collect recipients with their subscription context
+        recipients = {}
         changed_services = [change['service'] for change in changes['changes']]
-        
+
+        for sub in all_subscribers:
+            recipients[sub['email']] = {
+                'email': sub['email'],
+                'subscriptionType': 'all',
+                'selectedServices': []
+            }
+
         for sub in filtered_subscribers:
             selected_services = sub.get('selectedServices', [])
             # Check if any of their selected services changed
             if any(service in changed_services for service in selected_services):
-                filtered_recipients.append(sub['email'])
-        
-        # Combine all recipients
-        all_recipients.extend(filtered_recipients)
-        all_recipients = list(set(all_recipients))  # Remove duplicates
-        
-        if not all_recipients:
+                # If the same email is in both lists, prefer the filtered context
+                recipients[sub['email']] = {
+                    'email': sub['email'],
+                    'subscriptionType': 'filtered',
+                    'selectedServices': selected_services
+                }
+
+        recipients_list = list(recipients.values())
+
+        if not recipients_list:
             print("ℹ️ No active subscribers to notify")
             return True
         
-        print(f"\n📬 Sending notifications to {len(all_recipients)} subscribers:")
-        print(f"   - All changes: {len([sub['email'] for sub in all_subscribers])}")
-        print(f"   - Filtered matches: {len(filtered_recipients)}")
+        print(f"\n📬 Sending notifications to {len(recipients_list)} subscribers:")
+        print(f"   - All changes: {len(all_subscribers)}")
+        print(f"   - Filtered matches: {len([r for r in recipients_list if r['subscriptionType']=='filtered'])}")
         
         # Send notifications
-        success = email_service.send_change_notification(all_recipients, changes)
+        success = email_service.send_change_notification(recipients_list, changes)
         
         if success:
             print("\n✅ Notifications sent successfully!")

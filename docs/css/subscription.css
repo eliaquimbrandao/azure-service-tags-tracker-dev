@@ -215,6 +215,62 @@
     overflow: hidden;
 }
 
+.premium-locked-block {
+    position: relative;
+}
+
+.premium-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    font-weight: 600;
+    pointer-events: none;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.premium-locked-msg {
+    padding: 1.25rem;
+    text-align: center;
+    color: #475569;
+    font-weight: 600;
+}
+
+.plan-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 600;
+}
+
+.btn-upgrade {
+    background: #1d4ed8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    font-weight: 650;
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+.btn-upgrade:hover {
+    background: #1e40af;
+}
+
 .service-categories {
     display: flex;
     flex-wrap: wrap;

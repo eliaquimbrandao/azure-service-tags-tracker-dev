@@ -107,27 +107,32 @@ class EmailService:
             print(f"❌ Error sending email: {e}")
             return False
     
-    def send_change_notification(self, recipients: List[str], changes: Dict) -> bool:
+    def send_change_notification(self, recipients: List[Dict], changes: Dict) -> bool:
         """
-        Send notification email about Azure Service Tags changes
-        
+        Send notification email about Azure Service Tags changes.
+
+        Recipients carry context so the email can explain why they got it
+        (all services vs filtered selection) and show a scoped summary when
+        applicable.
+
         Args:
-            recipients: List of email addresses
+            recipients: List of dicts with keys email, subscriptionType, selectedServices
             changes: Change data from latest-changes.json
-        
+
         Returns:
-            True if sent successfully
+            True if at least one email was sent successfully
         """
         if not self.client:
             print(f"⚠️ SendGrid not configured. Would send to {len(recipients)} recipients")
             return False
         
         try:
-            # Summarize change payload for the email snapshot
+            # Summarize change payload for a compact snapshot
             change_list = changes.get('changes', [])
             services_changed = len(change_list)
-            timestamp = changes.get('timestamp', 'Unknown')
-            published_date = changes.get('date') or timestamp
+            # Dates: Microsoft publish vs our detection vs change week
+            timestamp = changes.get('generated_at') or changes.get('timestamp') or 'Not provided'
+            published_date = (changes.get('metadata') or {}).get('date_published') or changes.get('date') or timestamp
             regions_changed = 0
             added_total = 0
             removed_total = 0
@@ -143,111 +148,173 @@ class EmailService:
             if seen_regions:
                 regions_changed = len(seen_regions)
 
-            formatted_date = published_date
-            if published_date and isinstance(published_date, str):
-                try:
-                    parsed = datetime.strptime(published_date[:10], "%Y-%m-%d")
-                    formatted_date = parsed.strftime("%A, %B %d, %Y")
-                except ValueError:
-                    formatted_date = published_date
+            # Prefer regional count from summary when available (matches dashboard)
+            regional_map = changes.get('regional_changes') if isinstance(changes.get('regional_changes'), dict) else None
+            regions_from_summary = len([r for r, count in regional_map.items() if count]) if regional_map else regions_changed
 
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }}
-                    .container {{ max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
-                    .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center; }}
-                    .header h1 {{ margin: 0; font-size: 28px; font-weight: 600; }}
-                    .header p {{ margin: 10px 0 0 0; opacity: 0.9; font-size: 14px; }}
-                    .content {{ padding: 30px; }}
-                    .summary {{ background: #f0f9ff; border-left: 4px solid #0284c7; padding: 24px; margin: 24px 0; border-radius: 8px; }}
-                    .summary h2 {{ margin: 0 0 10px 0; font-size: 18px; color: #0c4a6e; }}
-                    .summary p {{ margin: 5px 0; color: #0f172a; font-size: 14px; }}
-                    .summary-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; margin-top: 20px; }}
-                    .stat-card {{ background: white; border-radius: 6px; padding: 16px; border: 1px solid #e2e8f0; text-align: center; }}
-                    .stat-label {{ font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }}
-                    .stat-value {{ font-size: 28px; font-weight: 600; color: #0284c7; margin-top: 6px; }}
-                    .button {{ display: inline-block; padding: 14px 28px; background: #667eea; color: white !important; text-decoration: none; border-radius: 6px; margin: 25px 0; font-weight: 600; transition: background 0.3s; }}
-                    .button:hover {{ background: #5568d3; }}
-                    .footer {{ background: #fafafa; padding: 25px 30px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }}
-                    .footer a {{ color: #667eea; text-decoration: none; }}
-                    .footer a:hover {{ text-decoration: underline; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🔔 Azure Service Tags Updated</h1>
-                        <p>Weekly change summary from your subscription</p>
-                    </div>
-                    <div class="content">
-                        <div class="summary">
-                            <h2>📊 Change Summary</h2>
-                            <p><strong>{formatted_date}</strong></p>
-                            <p style="color:#475569;">Detected: {timestamp}</p>
-                            <div class="summary-grid">
-                                <div class="stat-card">
-                                    <div class="stat-label">Services</div>
-                                    <div class="stat-value">{services_changed}</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Regions</div>
-                                    <div class="stat-value">{regions_changed}</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Added IPs</div>
-                                    <div class="stat-value" style="color:#16a34a;">{added_total}</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Removed IPs</div>
-                                    <div class="stat-value" style="color:#dc2626;">{removed_total}</div>
-                                </div>
-                            </div>
-                        </div>
-                        <p style="font-size:15px; color:#1f2937; line-height:1.8;">
-                            We detected new Azure Service Tags activity this week. Review the dashboard for a complete list of every service and IP range that changed, plus historical context and filtering tools.
-                        </p>
-                        <div style="text-align: center;">
-                            <a href="{self.app_url}/history.html" class="button">📈 View Detailed Changes</a>
-                        </div>
-                        <p style="font-size:13px; color:#475569; background:#eef2ff; border-left:4px solid #4338ca; padding:16px; border-radius:6px;">
-                            Tip: Bookmark the dashboard or share it with your network team so they can evaluate firewall rules, NSGs, and service endpoints whenever Microsoft publishes new IP ranges.
-                        </p>
-                    </div>
-                    <div class="footer">
-                        <p style="margin: 0 0 10px 0;">You're receiving this because you subscribed to Azure Service Tags updates.</p>
-                        <p style="margin: 0;"><a href="{self.app_url}/unsubscribe.html">Manage Subscription</a> | <a href="{self.app_url}">Dashboard</a></p>
-                        <p style="margin: 15px 0 0 0; color: #9ca3af;">Azure Service Tags Tracker<br>Automated monitoring powered by GitHub Actions</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            # Send to all recipients
+            def _fmt_date(value) -> str:
+                """Return date-only label (YYYY-MM-DD) for ISO/timestamp strings."""
+                if not value:
+                    return "Not provided"
+                if isinstance(value, datetime):
+                    return value.date().isoformat()
+                if isinstance(value, str):
+                    cleaned = value.strip()
+                    # Try ISO parsing first (handles timezone offsets and Z)
+                    try:
+                        iso_candidate = cleaned.replace('Z', '+00:00')
+                        return datetime.fromisoformat(iso_candidate).date().isoformat()
+                    except Exception:
+                        pass
+                    formats = [
+                        "%Y-%m-%d",
+                        "%m/%d/%Y",
+                        "%Y-%m-%d %H:%M:%S",
+                        "%Y-%m-%dT%H:%M:%S",
+                        "%Y-%m-%dT%H:%M:%S.%f%z",
+                        "%Y-%m-%dT%H:%M:%S.%f",
+                        "%Y-%m-%dT%H:%M:%S%z",
+                    ]
+                    for fmt in formats:
+                        try:
+                            return datetime.strptime(cleaned[:len(fmt.replace('%z',''))], fmt).date().isoformat()
+                        except ValueError:
+                            continue
+                    if len(cleaned) >= 10:
+                        return cleaned[:10]
+                    return cleaned
+                return str(value)
+
+            detected_label = _fmt_date(timestamp)
+            published_label = _fmt_date(published_date)
+
+            def scoped_stats(selected_services: List[str]):
+                if not selected_services:
+                    # All-services subscription: use summary region count if present
+                    return services_changed, regions_from_summary, added_total, removed_total
+                svc_changed = 0
+                svc_regions = set()
+                svc_added = 0
+                svc_removed = 0
+                for item in change_list:
+                    if item.get('service') not in selected_services:
+                        continue
+                    svc_changed += 1
+                    svc_added += item.get('added_count', len(item.get('added_prefixes', [])))
+                    svc_removed += item.get('removed_count', len(item.get('removed_prefixes', [])))
+                    region = item.get('region')
+                    if region:
+                        svc_regions.add(region)
+                return svc_changed, len(svc_regions), svc_added, svc_removed
+
             success_count = 0
-            for email in recipients:
+            for recipient in recipients:
+                email = recipient['email']
+                subscription_type = recipient.get('subscriptionType', 'all')
+                selected_services = recipient.get('selectedServices', []) or []
+
+                scoped_services_changed, scoped_regions, scoped_added, scoped_removed = scoped_stats(selected_services)
+
+                reason = "You receive this because you subscribed to all Azure Service Tags changes."
+                if subscription_type == 'filtered':
+                    reason = "You receive this because you subscribed to updates for specific services." + \
+                             (" Services: " + ", ".join(selected_services) if selected_services else "")
+
+                # Plaintext part (keeps size tiny and forwards cleanly)
+                text_lines = [
+                    "Azure Service Tags update",
+                    reason,
+                    "We detected new Azure Service Tags activity this week. Review the dashboard for a complete list of every service and IP range that changed, plus historical context and filtering tools.",
+                    f"Services changed: {scoped_services_changed}",
+                    f"Regions touched: {scoped_regions}",
+                    f"IPs added: {scoped_added} | removed: {scoped_removed}",
+                    f"Published by Microsoft: {published_label}",
+                    f"Detected by tracker: {detected_label}",
+                    f"Details: {self.app_url}/history.html",
+                    f"Manage subscription: {self.app_url}/unsubscribe.html",
+                ]
+                text_body = "\n".join(text_lines)
+
+                # Compact HTML summary mirroring the dashboard hero stats with a dark header
+                subscription_line = "Weekly change summary from your subscription to all Azure Service Tags & IP ranges changes." if subscription_type == 'all' else "Weekly change summary for your subscription to selected Azure Service Tags changes."
+
+                html_content = f"""
+                                <!DOCTYPE html>
+                                <html>
+                                    <head>
+                                        <meta charset=\"UTF-8\">
+                                        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+                                        <style>
+                                            body {{ margin:0; padding:0; background:#f7f9fb; font-family: Arial, sans-serif; color:#1f2937; }}
+                                            .card {{ max-width:620px; margin:12px auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.08); }}
+                                            .header {{ background:#0f172a; color:#e2e8f0; padding:16px 20px 14px 20px; }}
+                                            .header h1 {{ margin:0; font-size:18px; font-weight:700; color:#e0f2fe; }}
+                                            .header p {{ margin:6px 0 0 0; font-size:13px; color:#cbd5e1; }}
+                                            .body {{ padding:18px 20px 20px 20px; }}
+                                              .pill {{ display:inline-block; padding:6px 10px; border-radius:999px; background:#e0f2fe; color:#0f172a; font-size:11px; margin-bottom:8px; font-weight:600; }}
+                                              .pill.secondary {{ background:#eef2ff; color:#312e81; margin-left:6px; }}
+                                              .pill.tertiary {{ background:#e8f5e9; color:#0f5132; margin-left:6px; }}
+                                            .reason {{ margin:0 0 12px 0; color:#334155; font-size:13px; }}
+                                              .stats-table {{ width:100%; border-collapse:collapse; margin-top:8px; }}
+                                              .stats-table td {{ width:25%; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; text-align:center; padding:12px; font-family: Arial, sans-serif; }}
+                                              .stat h3 {{ margin:0; font-size:22px; color:#0f172a; }}
+                                              .stat p {{ margin:4px 0 0 0; font-size:12px; color:#475569; }}
+                                                                                            .cta {{ display:inline-block; padding:11px 16px; color:#ffffff !important; font-weight:650; font-size:13px; text-decoration:none; font-family: Arial, sans-serif; }}
+                                                                                            .cta:hover {{ background:#1e40af; color:#ffffff !important; }}
+                                            .footer {{ margin-top:16px; font-size:12px; color:#6b7280; }}
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div class=\"card\">
+                                            <div class=\"header\">
+                                                <h1>Azure Service Tags update</h1>
+                                                <p>{subscription_line}</p>
+                                            </div>
+                                            <div class=\"body\">
+                                                    <div class=\"pill secondary\">Published by Microsoft: {published_label}</div><div class=\"pill tertiary\">Detected by tracker: {detected_label}</div>
+                                                <p class=\"reason\">{reason}</p>
+                                                <p class=\"reason\">We detected new Azure Service Tags activity this week. Review the dashboard for a complete list of every service and IP range that changed, plus historical context and filtering tools.</p>
+                                                                                                <table class=\"stats-table\" role=\"presentation\">
+                                                                                                    <tr>
+                                                                                                        <td class=\"stat\"><h3>{scoped_services_changed}</h3><p>services changed</p></td>
+                                                                                                        <td class=\"stat\"><h3>{scoped_regions}</h3><p>regions touched</p></td>
+                                                                                                        <td class=\"stat\"><h3>{scoped_added}</h3><p>IPs added</p></td>
+                                                                                                        <td class=\"stat\"><h3>{scoped_removed}</h3><p>IPs removed</p></td>
+                                                                                                    </tr>
+                                                                                                </table>
+                                                                                                <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:12px;\">
+                                                                                                    <tr>
+                                                                                                        <td class=\"cta\" align=\"center\" bgcolor=\"#1d4ed8\" style=\"border-radius:8px;\">
+                                                                                                            <a href=\"{self.app_url}/history.html\" style=\"display:inline-block; padding:11px 16px; color:#ffffff !important; font-weight:650; font-size:13px; text-decoration:none; font-family: Arial, sans-serif;\">View detailed changes</a>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                </table>
+                                                <div class=\"footer\">Manage subscription: <a href=\"{self.app_url}/unsubscribe.html\" style=\"color:#1d4ed8; text-decoration:none;\">unsubscribe</a> · Dashboard: <a href=\"{self.app_url}\" style=\"color:#1d4ed8; text-decoration:none;\">open</a></div>
+                                            </div>
+                                        </div>
+                                    </body>
+                                </html>
+                                """
+
                 try:
                     message = Mail(
                         from_email=Email(self.from_email, self.from_name),
                         to_emails=To(email),
-                        subject=f'🔔 Azure Service Tags Updated - {services_changed} Services Changed',
+                        subject='Weekly Update: Azure Public Cloud IP Ranges & Service Tags changes',
                         html_content=Content("text/html", html_content)
                     )
-                    
+
+                    # Add plaintext alternative to improve deliverability/forwarding
+                    message.add_content(Content("text/plain", text_body))
+
                     response = self.client.send(message)
                     if response.status_code in [200, 202]:
                         success_count += 1
                 except Exception as e:
                     print(f"⚠️ Failed to send to {email}: {e}")
-            
+
             print(f"✅ Change notifications sent to {success_count}/{len(recipients)} subscribers")
             return success_count > 0
-            
         except Exception as e:
             print(f"❌ Error sending notifications: {e}")
             import traceback

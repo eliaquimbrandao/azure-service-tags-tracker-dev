@@ -13,6 +13,8 @@ class SubscriptionManager {
         this.currentPage = 1;
         this.itemsPerPage = 50;
         this.allRegions = this.getAllAzureRegions();
+        this.premiumLocked = true; // Filtered targeting is premium-only for now
+        this.planStatus = { plan: 'free', status: 'inactive', expires_at: null };
         // API endpoint - update this when deploying to Vercel
         this.apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:3000'  // Local development
@@ -159,16 +161,56 @@ class SubscriptionManager {
     setupEventListeners() {
         // Subscription type radio buttons
         const radioButtons = document.querySelectorAll('input[name="subscriptionType"]');
+        const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const filterSection = document.getElementById('filterSection');
                 if (e.target.value === 'filtered') {
-                    filterSection.style.display = 'block';
+                    // Premium gating: keep hidden even if user tries to toggle via devtools
+                    filterSection.style.display = 'none';
+                    this.showError('Filtered alerts by service/region/IP are a premium feature coming soon.');
+                    // Revert to all changes
+                    const allRadio = document.querySelector('input[name="subscriptionType"][value="all"]');
+                    if (allRadio) allRadio.checked = true;
                 } else {
                     filterSection.style.display = 'none';
                 }
             });
         });
+
+        // Ensure filtered option stays disabled (defense in depth)
+        if (filteredRadio) {
+            filteredRadio.disabled = true;
+        }
+
+        // Premium lock: disable service and region controls
+        if (this.premiumLocked) {
+            const serviceFilter = document.getElementById('serviceFilter');
+            const regionFilter = document.getElementById('regionFilter');
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+            if (serviceFilter) {
+                serviceFilter.disabled = true;
+                serviceFilter.placeholder = 'Premium feature: service/IP targeting coming soon';
+            }
+            if (regionFilter) {
+                regionFilter.disabled = true;
+                regionFilter.placeholder = 'Premium feature: region/IP targeting coming soon';
+            }
+            if (selectAllBtn) selectAllBtn.disabled = true;
+            if (clearAllBtn) clearAllBtn.disabled = true;
+        }
+
+        // Plan status check on email blur/change
+        const emailInput = document.getElementById('email');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        if (emailInput) {
+            emailInput.addEventListener('blur', () => this.checkPlanStatus());
+            emailInput.addEventListener('change', () => this.checkPlanStatus());
+        }
+        if (upgradeBtn) {
+            upgradeBtn.addEventListener('click', () => this.startUpgrade());
+        }
 
         // Service filter search
         const serviceFilter = document.getElementById('serviceFilter');
@@ -296,6 +338,12 @@ class SubscriptionManager {
         const serviceList = document.getElementById('serviceList');
         if (!serviceList) return;
 
+        // Premium lock: show banner and bail
+        if (this.premiumLocked) {
+            serviceList.innerHTML = '<div class="premium-locked-msg">Targeted service selection is a premium feature coming soon.</div>';
+            return;
+        }
+
         // Filter services by category
         let filteredServices = this.services;
         if (this.currentCategory && this.currentCategory !== 'all') {
@@ -304,10 +352,14 @@ class SubscriptionManager {
 
         // Apply search filter
         if (this.searchTerm) {
-            filteredServices = filteredServices.filter(service => 
-                service.name.toLowerCase().includes(this.searchTerm) ||
-                service.id.toLowerCase().includes(this.searchTerm)
-            );
+            if (this.isIpQuery(this.searchTerm)) {
+                filteredServices = filteredServices.filter(service => this.serviceMatchesIp(service, this.searchTerm));
+            } else {
+                filteredServices = filteredServices.filter(service => 
+                    service.name.toLowerCase().includes(this.searchTerm) ||
+                    service.id.toLowerCase().includes(this.searchTerm)
+                );
+            }
         }
 
         if (filteredServices.length === 0) {
@@ -446,15 +498,26 @@ class SubscriptionManager {
         const dropdown = document.getElementById('regionDropdown');
         if (!dropdown) return;
 
+        if (this.premiumLocked) {
+            dropdown.innerHTML = '<div class="region-dropdown-item no-results">Region/IP targeting is premium-only (coming soon)</div>';
+            dropdown.style.display = 'block';
+            return;
+        }
+
         const term = searchTerm.toLowerCase().trim();
-        
-        // Filter regions based on search
+
+        // Filter regions: support IP lookups by matching services that contain the IP
         let filteredRegions = this.allRegions;
         if (term) {
-            filteredRegions = this.allRegions.filter(region => 
-                region.name.toLowerCase().includes(term) ||
-                region.id.toLowerCase().includes(term)
-            );
+            if (this.isIpQuery(term)) {
+                const ipRegions = this.getRegionsForIp(term);
+                filteredRegions = this.allRegions.filter(region => ipRegions.has(region.id));
+            } else {
+                filteredRegions = this.allRegions.filter(region => 
+                    region.name.toLowerCase().includes(term) ||
+                    region.id.toLowerCase().includes(term)
+                );
+            }
         }
 
         // Remove already selected regions from dropdown
@@ -505,6 +568,77 @@ class SubscriptionManager {
 
     escapeRegex(str) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    isIpQuery(term) {
+        const t = term.trim();
+        return this.isIPv4(t) || this.isIPv4Cidr(t);
+    }
+
+    isIPv4(ip) {
+        const match = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+        if (!match) return false;
+        return match.slice(1).every(octet => Number(octet) >= 0 && Number(octet) <= 255);
+    }
+
+    isIPv4Cidr(cidr) {
+        const parts = cidr.split('/');
+        if (parts.length !== 2) return false;
+        const [ip, prefix] = parts;
+        const prefixNum = Number(prefix);
+        return this.isIPv4(ip) && Number.isInteger(prefixNum) && prefixNum >= 0 && prefixNum <= 32;
+    }
+
+    ipToInt(ip) {
+        return ip.split('.').reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
+    }
+
+    ipInCidr(ip, cidr) {
+        if (!this.isIPv4(ip)) return false;
+        if (!this.isIPv4Cidr(cidr)) return false;
+        const [network, prefix] = cidr.split('/');
+        const maskBits = Number(prefix);
+        const ipInt = this.ipToInt(ip);
+        const networkInt = this.ipToInt(network);
+        const mask = maskBits === 0 ? 0 : (~0 << (32 - maskBits)) >>> 0;
+        return (ipInt & mask) === (networkInt & mask);
+    }
+
+    serviceMatchesIp(service, searchTerm) {
+        const prefixes = (service.properties && service.properties.addressPrefixes) || [];
+        const term = searchTerm.trim();
+        if (!prefixes.length) return false;
+
+        // Exact CIDR match
+        if (this.isIPv4Cidr(term)) {
+            return prefixes.some(p => p === term);
+        }
+
+        // IP match inside any CIDR
+        if (this.isIPv4(term)) {
+            return prefixes.some(p => {
+                if (this.isIPv4Cidr(p)) return this.ipInCidr(term, p);
+                if (this.isIPv4(p)) return p === term;
+                return false;
+            });
+        }
+
+        return false;
+    }
+
+    getRegionsForIp(searchTerm) {
+        const regions = new Set();
+        const term = searchTerm.trim();
+        if (!term) return regions;
+
+        this.services.forEach(service => {
+            const regionId = (service.properties && service.properties.region) || '';
+            if (!regionId) return;
+            if (this.serviceMatchesIp(service, term)) {
+                regions.add(regionId.toLowerCase());
+            }
+        });
+        return regions;
     }
 
     addRegion(regionId) {
@@ -564,8 +698,8 @@ class SubscriptionManager {
         };
 
         // Validation
-        if (subscriptionType === 'filtered' && this.selectedServices.size === 0) {
-            this.showError('Please select at least one service to monitor.');
+        if (subscriptionType === 'filtered') {
+            this.showError('Filtered alerts are a premium feature. Please select "All Changes" to subscribe.');
             return;
         }
 
@@ -616,6 +750,96 @@ class SubscriptionManager {
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<span class="btn-icon">📧</span><span class="btn-text">Subscribe for Free</span>';
+        }
+    }
+
+    async checkPlanStatus() {
+        const emailInput = document.getElementById('email');
+        if (!emailInput || !emailInput.value) return;
+        const email = emailInput.value.trim();
+        if (!email) return;
+        try {
+            const res = await fetch(`${this.apiBaseUrl}/api/plan_status?email=${encodeURIComponent(email)}`);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                this.planStatus = data.plan || { plan: 'free', status: 'inactive' };
+                this.applyPlanStatus();
+            }
+        } catch (err) {
+            console.error('Plan status check failed', err);
+        }
+    }
+
+    applyPlanStatus() {
+        const statusText = document.getElementById('planStatusText');
+        const statusWrap = document.getElementById('planStatus');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        const filteredRadio = document.querySelector('input[name="subscriptionType"][value="filtered"]');
+        const serviceFilter = document.getElementById('serviceFilter');
+        const regionFilter = document.getElementById('regionFilter');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+
+        const isPremium = this.planStatus.plan === 'premium' && this.planStatus.status === 'active';
+        if (statusWrap && statusText) {
+            statusWrap.style.display = 'flex';
+            if (isPremium) {
+                statusText.textContent = 'Premium active — targeted filters unlocked.';
+            } else {
+                statusText.textContent = 'Free plan — upgrade to unlock targeted filters ($1/mo launch price).';
+            }
+        }
+
+        this.premiumLocked = !isPremium;
+        if (filteredRadio) {
+            filteredRadio.disabled = this.premiumLocked;
+            if (!this.premiumLocked) {
+                filteredRadio.parentElement.classList.remove('premium-disabled');
+            }
+        }
+
+        // Toggle controls
+        const toggle = (el, disabled, placeholderText) => {
+            if (!el) return;
+            el.disabled = disabled;
+            if (placeholderText) el.placeholder = placeholderText;
+        };
+
+        if (this.premiumLocked) {
+            toggle(serviceFilter, true, 'Premium feature: service/IP targeting coming soon');
+            toggle(regionFilter, true, 'Premium feature: region/IP targeting coming soon');
+            if (selectAllBtn) selectAllBtn.disabled = true;
+            if (clearAllBtn) clearAllBtn.disabled = true;
+        } else {
+            toggle(serviceFilter, false);
+            toggle(regionFilter, false);
+            if (selectAllBtn) selectAllBtn.disabled = false;
+            if (clearAllBtn) clearAllBtn.disabled = false;
+        }
+    }
+
+    async startUpgrade() {
+        const emailInput = document.getElementById('email');
+        if (!emailInput || !emailInput.value) {
+            this.showError('Enter your email to start the upgrade.');
+            return;
+        }
+        const email = emailInput.value.trim();
+        try {
+            const res = await fetch(`${this.apiBaseUrl}/api/upgrade`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                this.showError(data.error || 'Upgrade is not available yet.');
+            }
+        } catch (err) {
+            console.error('Upgrade start failed', err);
+            this.showError('Upgrade request failed. Please try again.');
         }
     }
 

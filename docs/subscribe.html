@@ -71,6 +71,10 @@
                         <input type="email" id="email" name="email" required 
                             placeholder="your@email.com" class="form-input">
                         <small class="form-hint">We'll never share your email with anyone else.</small>
+                        <div id="planStatus" class="plan-status" style="display:none;">
+                            <span id="planStatusText"></span>
+                            <button type="button" class="btn-upgrade" id="upgradeBtn">Upgrade to Premium ($1/mo)</button>
+                        </div>
                     </div>
 
                     <!-- Subscription Type -->
@@ -84,22 +88,24 @@
                                     <span class="radio-description">Receive weekly summaries of all Azure Service Tag updates</span>
                                 </span>
                             </label>
-                            <label class="radio-option">
-                                <input type="radio" name="subscriptionType" value="filtered">
+                            <label class="radio-option premium-disabled" title="Premium feature (coming soon)">
+                                <input type="radio" name="subscriptionType" value="filtered" disabled>
                                 <span class="radio-content">
-                                    <span class="radio-title">Specific Services</span>
-                                    <span class="radio-description">Only get notified about services you care about</span>
+                                    <span class="radio-title">Specific Services <span class="badge-premium">Premium</span></span>
+                                    <span class="radio-description">Service/region filters will be available with paid plans</span>
                                 </span>
                             </label>
                         </div>
+                        <p class="premium-note">Targeted alerts (by service, region, or IP) are part of upcoming paid plans. Join the waitlist: <a href="mailto:azure.tracker.waitlist@example.com">azure.tracker.waitlist@example.com</a>.</p>
                     </div>
 
                     <!-- Service Filter (Hidden by default) -->
                     <div id="filterSection" class="filter-section" style="display: none;">
-                        <div class="form-group">
-                            <label for="serviceFilter" class="label-text">Search Services</label>
+                        <div class="form-group premium-locked-block">
+                            <label for="serviceFilter" class="label-text">Search Services or IPs</label>
                             <input type="text" id="serviceFilter" class="form-input" 
-                                placeholder="Type to search services (e.g., Storage, SQL, AzureCloud)">
+                                placeholder="Search services or IPs (e.g., Storage, SQL, 13.107.6.10)">
+                            <div class="premium-overlay">Premium feature – targeted services/IPs coming soon</div>
                         </div>
 
                         <div class="form-group">
@@ -143,11 +149,12 @@
                         </div>
 
                         <!-- Region Filter -->
-                        <div class="form-group">
-                            <label for="regionFilter" class="label-text">Filter by Regions (Optional)</label>
+                        <div class="form-group premium-locked-block">
+                            <label for="regionFilter" class="label-text">Filter by Regions or IPs (Optional)</label>
                             <input type="text" id="regionFilter" class="form-input" 
-                                placeholder="Search regions (e.g., East US, West Europe)"
+                                placeholder="Search regions or IPs (e.g., East US, 13.107.6.10)"
                                 autocomplete="off">
+                            <div class="premium-overlay">Premium feature – targeted regions/IPs coming soon</div>
                             
                             <!-- Selected Regions Tags -->
                             <div class="selected-regions-tags" id="selectedRegionsTags" style="display: none;">

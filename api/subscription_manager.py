@@ -55,6 +55,9 @@ class SubscriptionManager:
         try:
             email = subscription_data.get('email', '').lower().strip()
             
+            # Determine requested type
+            requested_type = subscription_data.get('subscriptionType', 'all')
+
             # Check if email already has an active subscription
             if self.is_email_subscribed(email):
                 return {
@@ -62,6 +65,16 @@ class SubscriptionManager:
                     'error': 'Email already subscribed',
                     'code': 'DUPLICATE_EMAIL'
                 }
+
+            # Enforce premium for filtered subscriptions
+            if requested_type == 'filtered':
+                plan = self.get_plan(email)
+                if not self._plan_allows_filtered(plan):
+                    return {
+                        'success': False,
+                        'error': 'Premium required for filtered subscriptions',
+                        'code': 'PREMIUM_REQUIRED'
+                    }
             
             # Check if there's an unsubscribed record to reactivate
             existing = self.collection.find_one({
@@ -76,7 +89,7 @@ class SubscriptionManager:
                     {
                         '$set': {
                             'status': 'active',
-                            'subscriptionType': subscription_data.get('subscriptionType', 'all'),
+                            'subscriptionType': requested_type,
                             'selectedServices': subscription_data.get('selectedServices', []),
                             'selectedRegions': subscription_data.get('selectedRegions', []),
                             'updated_at': datetime.utcnow(),
@@ -106,14 +119,20 @@ class SubscriptionManager:
                 'id': self.generate_subscription_id(),
                 'email': email,
                 'email_hash': self.hash_email(email),  # For analytics without exposing emails
-                'subscriptionType': subscription_data.get('subscriptionType', 'all'),
+                'subscriptionType': requested_type,
                 'selectedServices': subscription_data.get('selectedServices', []),
                 'selectedRegions': subscription_data.get('selectedRegions', []),
                 'timestamp': datetime.utcnow().isoformat(),
                 'status': 'active',
                 'unsubscribe_token': self.generate_unsubscribe_token(),
                 'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
+                'updated_at': datetime.utcnow(),
+                'plan': 'free',
+                'plan_status': 'inactive',
+                'plan_expires_at': None,
+                'plan_source': None,
+                'provider_customer_id': None,
+                'provider_subscription_id': None
             }
             
             # Insert into database
@@ -155,6 +174,23 @@ class SubscriptionManager:
             'status': 'active'
         })
         return existing is not None
+
+    def get_plan(self, email: str) -> Dict:
+        """Return plan info for an email (defaults to free)."""
+        email = email.lower().strip()
+        doc = self.collection.find_one({'email': email})
+        if not doc:
+            return {'plan': 'free', 'plan_status': 'inactive', 'plan_expires_at': None}
+        return {
+            'plan': doc.get('plan', 'free'),
+            'plan_status': doc.get('plan_status', 'inactive'),
+            'plan_expires_at': doc.get('plan_expires_at')
+        }
+
+    def _plan_allows_filtered(self, plan: Dict) -> bool:
+        if not plan:
+            return False
+        return plan.get('plan') == 'premium' and plan.get('plan_status') == 'active'
     
     def get_subscription(self, email: str = None, token: str = None) -> Optional[Dict]:
         """Get subscription by email or token"""
